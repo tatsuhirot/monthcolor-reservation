@@ -1,0 +1,1192 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>MONTH COLOR – ご予約</title>
+<style>
+/* ═══════════════════════════════════════════
+   RESET & BASE
+═══════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 14px; -webkit-text-size-adjust: 100%; }
+body {
+  font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", Meiryo, "Noto Sans CJK JP", sans-serif;
+  background: #f5f5f5;
+  color: #333;
+  min-height: 100vh;
+}
+a { color: #080; text-decoration: none; }
+a:hover { text-decoration: underline; }
+button { cursor: pointer; border: none; background: none; font-family: inherit; }
+
+/* ═══════════════════════════════════════════
+   LAYOUT SHELL
+═══════════════════════════════════════════ */
+.app {
+  max-width: 480px;
+  margin: 0 auto;
+  background: #fff;
+  min-height: 100vh;
+  box-shadow: 0 0 20px rgba(0,0,0,.08);
+  display: flex;
+  flex-direction: column;
+}
+
+/* ═══════════════════════════════════════════
+   SALON HEADER
+═══════════════════════════════════════════ */
+.salon-header { position: relative; }
+.salon-header__img {
+  width: 100%;
+  height: 180px;
+  object-fit: cover;
+  display: block;
+  background: linear-gradient(135deg, #d4b896 0%, #c9a87a 50%, #b89060 100%);
+}
+.salon-header__img-placeholder {
+  width: 100%;
+  height: 180px;
+  background: linear-gradient(135deg, #e8d5bc 0%, #d4b896 40%, #c9a87a 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  position: relative;
+}
+.salon-header__img-placeholder::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 20% 40%, rgba(255,255,255,.15) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 60%, rgba(139,100,60,.2) 0%, transparent 50%);
+}
+.salon-header__plate {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: #fff;
+  border-bottom: 1px solid #e8e8e8;
+}
+.salon-header__logo {
+  width: 50px;
+  height: 50px;
+  flex-shrink: 0;
+  border-radius: 4px;
+  background: #1a1a1a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.salon-header__logo-inner {
+  width: 38px;
+  height: 38px;
+  background: #fff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: .5px;
+  color: #1a1a1a;
+  text-align: center;
+  line-height: 1.2;
+}
+.salon-header__info { flex: 1; min-width: 0; }
+.salon-header__name { font-size: 17px; font-weight: 700; color: #1a1a1a; line-height: 1.2; }
+.salon-header__address { font-size: 11px; color: #888; margin-top: 2px; }
+
+/* TOP LINK */
+.top-link-bar {
+  padding: 8px 14px;
+  border-bottom: 1px solid #eee;
+  background: #fff;
+}
+.top-link-bar a {
+  font-size: 13px;
+  color: #080;
+  font-weight: 600;
+}
+
+/* ═══════════════════════════════════════════
+   STEP INDICATOR
+═══════════════════════════════════════════ */
+.step-bar {
+  padding: 16px 14px 12px;
+  text-align: center;
+  background: #fff;
+}
+.step-bar__title {
+  font-size: 15px;
+  font-weight: 700;
+  margin-bottom: 10px;
+  color: #1a1a1a;
+}
+.step-bar__dots {
+  display: flex;
+  justify-content: center;
+  gap: 7px;
+}
+.step-bar__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ddd;
+  transition: background .25s;
+}
+.step-bar__dot.active { background: #e60; }
+.step-bar__dot.done   { background: #888; }
+
+/* ═══════════════════════════════════════════
+   NOTICE BLOCK
+═══════════════════════════════════════════ */
+.notice-block {
+  padding: 14px;
+  background: #fff;
+  border-top: 1px solid #f0f0f0;
+}
+.notice-block__deadline {
+  font-size: 14px;
+  color: #333;
+  margin-bottom: 6px;
+}
+.notice-block__deadline span { color: #e00; font-weight: 700; }
+.notice-block__contact { font-size: 13px; color: #555; margin-bottom: 6px; }
+.notice-block__tel {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #07f;
+}
+.notice-block__tel::before {
+  content: '📞';
+  font-size: 14px;
+}
+
+/* ═══════════════════════════════════════════
+   SECTION HEADER
+═══════════════════════════════════════════ */
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 14px 10px;
+}
+.section-header__icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #e60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.section-header__icon svg { width: 14px; height: 14px; fill: #fff; }
+.section-header__text {
+  font-size: 15px;
+  font-weight: 700;
+  color: #1a1a1a;
+}
+
+/* ═══════════════════════════════════════════
+   STAFF / MENU CARD
+═══════════════════════════════════════════ */
+.card-list { padding: 0 0 20px; }
+.card-item {
+  display: flex;
+  align-items: stretch;
+  background: #f8f8f8;
+  border-top: 1px solid #e0e0e0;
+  border-bottom: 1px solid #e0e0e0;
+  margin-bottom: 8px;
+  position: relative;
+  overflow: hidden;
+  transition: background .15s;
+}
+.card-item:active { background: #f0f0f0; }
+.card-item__img {
+  width: 80px;
+  flex-shrink: 0;
+  background: #e0d8ce;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.card-item__img-inner {
+  width: 80px;
+  height: 80px;
+  object-fit: cover;
+  display: block;
+}
+.card-item__img-placeholder {
+  width: 80px;
+  height: 80px;
+  background: linear-gradient(135deg, #e8d5bc, #c9a87a);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  color: rgba(255,255,255,.7);
+}
+.card-item__body {
+  flex: 1;
+  padding: 10px 12px;
+  min-width: 0;
+}
+.card-item__name {
+  font-size: 15px;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin-bottom: 4px;
+}
+.card-item__note {
+  font-size: 11px;
+  color: #888;
+  margin-bottom: 4px;
+  font-style: italic;
+}
+.card-item__desc {
+  font-size: 12px;
+  color: #666;
+  line-height: 1.5;
+}
+.card-item__action {
+  display: flex;
+  align-items: center;
+  padding: 10px 12px 10px 4px;
+  flex-shrink: 0;
+}
+
+/* ═══════════════════════════════════════════
+   SELECT BUTTON (orange circle)
+═══════════════════════════════════════════ */
+.select-btn {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: #e60;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background .15s, transform .1s;
+  flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(238,102,0,.35);
+}
+.select-btn:active { background: #c55200; transform: scale(.95); }
+.select-btn.selected { background: #888; }
+.select-btn__label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1;
+  margin-bottom: 1px;
+}
+.select-btn__arrow {
+  font-size: 9px;
+  color: rgba(255,255,255,.8);
+  line-height: 1;
+}
+
+/* ═══════════════════════════════════════════
+   SELECTED BADGE
+═══════════════════════════════════════════ */
+.selected-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #e60;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 100px;
+  margin-top: 4px;
+}
+.selected-badge::before { content: '✓'; }
+
+/* ═══════════════════════════════════════════
+   MENU CARD (step 2)
+═══════════════════════════════════════════ */
+.menu-list { padding: 0 0 20px; }
+.menu-item {
+  background: #f8f8f8;
+  border-top: 1px solid #e0e0e0;
+  border-bottom: 1px solid #e0e0e0;
+  margin-bottom: 8px;
+  overflow: hidden;
+}
+.menu-item__header {
+  display: flex;
+  align-items: center;
+  padding: 12px 14px;
+  gap: 10px;
+}
+.menu-item__info { flex: 1; }
+.menu-item__name { font-size: 14px; font-weight: 700; color: #1a1a1a; }
+.menu-item__meta { font-size: 12px; color: #888; margin-top: 2px; }
+.menu-item__price {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1a1a1a;
+  white-space: nowrap;
+}
+.menu-item__desc-area {
+  padding: 0 14px 12px;
+  font-size: 12px;
+  color: #666;
+  line-height: 1.6;
+}
+.menu-item__expand {
+  background: none;
+  border: none;
+  font-size: 12px;
+  color: #07f;
+  padding: 0 14px 10px;
+  display: block;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+
+/* ═══════════════════════════════════════════
+   NEXT BUTTON
+═══════════════════════════════════════════ */
+.next-btn-wrap { padding: 10px 14px 24px; }
+.next-btn {
+  width: 100%;
+  height: 48px;
+  background: #e60;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: background .15s, opacity .15s;
+  box-shadow: 0 2px 8px rgba(238,102,0,.3);
+}
+.next-btn:disabled { background: #ccc; box-shadow: none; cursor: not-allowed; }
+.next-btn:not(:disabled):active { background: #c55200; }
+.next-btn::after { content: '›'; font-size: 20px; font-weight: 400; }
+
+/* ═══════════════════════════════════════════
+   CALENDAR (step 3)
+═══════════════════════════════════════════ */
+.calendar-wrap { padding: 14px; }
+.calendar-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.calendar-nav__btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid #ddd;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  color: #555;
+  transition: background .15s;
+}
+.calendar-nav__btn:active { background: #f0f0f0; }
+.calendar-nav__month { font-size: 16px; font-weight: 700; color: #1a1a1a; }
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+.calendar-grid__dow {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #888;
+  padding: 4px 0;
+}
+.calendar-grid__dow:first-child { color: #e00; }
+.calendar-grid__dow:last-child  { color: #07f; }
+.calendar-grid__day {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: background .15s;
+  position: relative;
+}
+.calendar-grid__day.empty { pointer-events: none; }
+.calendar-grid__day.past  { color: #ccc; pointer-events: none; }
+.calendar-grid__day.sunday { color: #e00; }
+.calendar-grid__day.saturday { color: #07f; }
+.calendar-grid__day.has-slot::after {
+  content: '';
+  position: absolute;
+  bottom: 3px;
+  width: 4px; height: 4px;
+  border-radius: 50%;
+  background: #e60;
+}
+.calendar-grid__day.selected {
+  background: #e60;
+  color: #fff !important;
+}
+.calendar-grid__day.selected::after { display: none; }
+.calendar-grid__day:not(.past):not(.empty):not(.selected):hover { background: #f5e8d8; }
+
+/* TIME SLOTS */
+.time-slots { padding: 14px; }
+.time-slots__title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #555;
+  margin-bottom: 10px;
+}
+.time-slots__grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.time-slot {
+  height: 42px;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #333;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all .15s;
+  background: #fff;
+}
+.time-slot:hover { border-color: #e60; color: #e60; }
+.time-slot.selected { background: #e60; border-color: #e60; color: #fff; }
+.time-slot.full { background: #f5f5f5; color: #bbb; cursor: not-allowed; pointer-events: none; }
+.time-slot.full::after { content: '×'; margin-left: 3px; font-size: 10px; }
+
+/* ═══════════════════════════════════════════
+   FORM (step 4)
+═══════════════════════════════════════════ */
+.form-wrap { padding: 14px; }
+.form-group { margin-bottom: 18px; }
+.form-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.form-label .required {
+  font-size: 10px;
+  background: #e00;
+  color: #fff;
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.form-input {
+  width: 100%;
+  height: 44px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 0 12px;
+  font-size: 14px;
+  font-family: inherit;
+  color: #333;
+  transition: border-color .15s;
+  background: #fff;
+  -webkit-appearance: none;
+}
+.form-input:focus {
+  outline: none;
+  border-color: #e60;
+  box-shadow: 0 0 0 3px rgba(238,102,0,.1);
+}
+.form-input::placeholder { color: #bbb; }
+.form-hint { font-size: 11px; color: #888; margin-top: 4px; }
+
+/* POLICY */
+.policy-block {
+  background: #f8f8f8;
+  border: 1px solid #e8e8e8;
+  border-radius: 6px;
+  padding: 12px 14px;
+  margin-bottom: 18px;
+  font-size: 12px;
+  color: #666;
+  line-height: 1.6;
+}
+.policy-block__title { font-weight: 700; margin-bottom: 6px; color: #333; }
+
+/* CHECKBOX */
+.checkbox-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+.checkbox-row input[type=checkbox] {
+  width: 20px; height: 20px;
+  margin-top: 2px;
+  flex-shrink: 0;
+  accent-color: #e60;
+}
+
+/* ═══════════════════════════════════════════
+   CONFIRM (step 5)
+═══════════════════════════════════════════ */
+.confirm-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  margin-bottom: 20px;
+}
+.confirm-table th {
+  padding: 10px 14px;
+  background: #f5f5f5;
+  color: #888;
+  font-size: 12px;
+  font-weight: 600;
+  width: 38%;
+  vertical-align: top;
+  border-bottom: 1px solid #e8e8e8;
+}
+.confirm-table td {
+  padding: 10px 14px;
+  color: #1a1a1a;
+  border-bottom: 1px solid #e8e8e8;
+  font-weight: 600;
+}
+
+/* CONFIRM BUTTON */
+.confirm-btn {
+  width: 100%;
+  height: 54px;
+  background: #e60;
+  color: #fff;
+  font-size: 17px;
+  font-weight: 700;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 3px 12px rgba(238,102,0,.35);
+  transition: background .15s, transform .1s;
+  margin-bottom: 14px;
+}
+.confirm-btn:active { background: #c55200; transform: scale(.99); }
+
+/* ═══════════════════════════════════════════
+   COMPLETE (step 6)
+═══════════════════════════════════════════ */
+.complete-wrap {
+  padding: 40px 20px;
+  text-align: center;
+}
+.complete-wrap__icon {
+  width: 72px; height: 72px;
+  border-radius: 50%;
+  background: #e60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 20px;
+  font-size: 32px;
+}
+.complete-wrap__title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin-bottom: 10px;
+}
+.complete-wrap__text {
+  font-size: 14px;
+  color: #666;
+  line-height: 1.7;
+  margin-bottom: 24px;
+}
+.complete-wrap__box {
+  background: #fff8f0;
+  border: 1px solid #f5c89a;
+  border-radius: 8px;
+  padding: 16px;
+  text-align: left;
+  font-size: 13px;
+  color: #666;
+  line-height: 1.8;
+  margin-bottom: 28px;
+}
+.complete-wrap__box strong { color: #1a1a1a; }
+
+/* ═══════════════════════════════════════════
+   STEP VISIBILITY
+═══════════════════════════════════════════ */
+.step { display: none; }
+.step.active { display: block; }
+
+/* ═══════════════════════════════════════════
+   TRANSITION ANIMATION
+═══════════════════════════════════════════ */
+.step.active {
+  animation: fadeSlide .25s ease-out;
+}
+@keyframes fadeSlide {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ═══════════════════════════════════════════
+   BACK LINK
+═══════════════════════════════════════════ */
+.back-link {
+  padding: 10px 14px;
+  font-size: 13px;
+  color: #080;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+.back-link::before { content: '‹ '; font-size: 16px; }
+</style>
+</head>
+<body>
+<div class="app" id="app">
+
+  <!-- ── SALON HEADER (全ステップ共通) ── -->
+  <header class="salon-header">
+    <div class="salon-header__img-placeholder">
+      <!-- サロン画像があればここに img タグを入れる -->
+    </div>
+    <div class="salon-header__plate">
+      <div class="salon-header__logo">
+        <div class="salon-header__logo-inner">MONTH<br>COLOR</div>
+      </div>
+      <div class="salon-header__info">
+        <div class="salon-header__name">MONTH COLOR</div>
+        <div class="salon-header__address">東京都江東区東陽4-1-2 大朋ビル4F</div>
+      </div>
+    </div>
+    <div class="top-link-bar">
+      <a href="#" onclick="goStep(1);return false;">予約トップへ</a>
+    </div>
+  </header>
+
+  <!-- ═══ STEP 1: 担当者選択 ═══ -->
+  <div class="step active" id="step1">
+    <div class="step-bar">
+      <div class="step-bar__title">担当者選択</div>
+      <div class="step-bar__dots">
+        <div class="step-bar__dot active"></div>
+        <div class="step-bar__dot"></div>
+        <div class="step-bar__dot"></div>
+        <div class="step-bar__dot"></div>
+        <div class="step-bar__dot"></div>
+      </div>
+    </div>
+    <div class="notice-block">
+      <p class="notice-block__deadline">ご予約は <span>1時間前まで</span> で受けています。</p>
+      <p class="notice-block__contact">ご質問やお問い合わせは、お電話にてお願いいたします。</p>
+      <a class="notice-block__tel" href="tel:0368205623">03-6820-5623</a>
+    </div>
+    <div class="section-header">
+      <div class="section-header__icon">
+        <svg viewBox="0 0 24 24"><path d="M9 11.5A3.5 3.5 0 1 0 9 4.5a3.5 3.5 0 0 0 0 7zm0 2c-3.33 0-6 1.67-6 3.5V19h12v-2c0-1.83-2.67-3.5-6-3.5z"/></svg>
+      </div>
+      <div class="section-header__text">指名して予約</div>
+    </div>
+    <div class="card-list" id="staffList">
+      <!-- JS で生成 -->
+    </div>
+    <div class="next-btn-wrap">
+      <button class="next-btn" id="step1Next" disabled onclick="goStep(2)">次へ（メニュー選択）</button>
+    </div>
+  </div>
+
+  <!-- ═══ STEP 2: メニュー選択 ═══ -->
+  <div class="step" id="step2">
+    <div class="step-bar">
+      <div class="step-bar__title">メニュー選択</div>
+      <div class="step-bar__dots">
+        <div class="step-bar__dot done"></div>
+        <div class="step-bar__dot active"></div>
+        <div class="step-bar__dot"></div>
+        <div class="step-bar__dot"></div>
+        <div class="step-bar__dot"></div>
+      </div>
+    </div>
+    <div class="back-link" onclick="goStep(1)">担当者選択に戻る</div>
+    <div class="section-header">
+      <div class="section-header__icon">
+        <svg viewBox="0 0 24 24"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
+      </div>
+      <div class="section-header__text" id="menuStepTitle">メニューを選択してください</div>
+    </div>
+    <div class="menu-list" id="menuList"></div>
+    <div class="next-btn-wrap">
+      <button class="next-btn" id="step2Next" disabled onclick="goStep(3)">次へ（日時選択）</button>
+    </div>
+  </div>
+
+  <!-- ═══ STEP 3: 予約日時 ═══ -->
+  <div class="step" id="step3">
+    <div class="step-bar">
+      <div class="step-bar__title">予約日時の選択</div>
+      <div class="step-bar__dots">
+        <div class="step-bar__dot done"></div>
+        <div class="step-bar__dot done"></div>
+        <div class="step-bar__dot active"></div>
+        <div class="step-bar__dot"></div>
+        <div class="step-bar__dot"></div>
+      </div>
+    </div>
+    <div class="back-link" onclick="goStep(2)">メニュー選択に戻る</div>
+    <div class="calendar-wrap">
+      <div class="calendar-nav">
+        <button class="calendar-nav__btn" onclick="prevMonth()">‹</button>
+        <div class="calendar-nav__month" id="calMonthLabel"></div>
+        <button class="calendar-nav__btn" onclick="nextMonth()">›</button>
+      </div>
+      <div class="calendar-grid" id="calGrid"></div>
+    </div>
+    <div class="time-slots" id="timeSlots" style="display:none">
+      <div class="time-slots__title" id="timeSlotTitle"></div>
+      <div class="time-slots__grid" id="timeSlotGrid"></div>
+    </div>
+    <div class="next-btn-wrap">
+      <button class="next-btn" id="step3Next" disabled onclick="goStep(4)">次へ（お客様情報）</button>
+    </div>
+  </div>
+
+  <!-- ═══ STEP 4: 顧客情報 ═══ -->
+  <div class="step" id="step4">
+    <div class="step-bar">
+      <div class="step-bar__title">お客様情報の入力</div>
+      <div class="step-bar__dots">
+        <div class="step-bar__dot done"></div>
+        <div class="step-bar__dot done"></div>
+        <div class="step-bar__dot done"></div>
+        <div class="step-bar__dot active"></div>
+        <div class="step-bar__dot"></div>
+      </div>
+    </div>
+    <div class="back-link" onclick="goStep(3)">日時選択に戻る</div>
+    <div class="form-wrap">
+      <div class="form-group">
+        <div class="form-label">氏名（カナ） <span class="required">必須</span></div>
+        <div class="form-row">
+          <input class="form-input" id="kanaLast"  type="text" placeholder="セイ（カナ）" oninput="checkStep4()">
+          <input class="form-input" id="kanaFirst" type="text" placeholder="メイ（カナ）" oninput="checkStep4()">
+        </div>
+      </div>
+      <div class="form-group">
+        <div class="form-label">氏名（漢字）</div>
+        <div class="form-row">
+          <input class="form-input" id="kanjiLast"  type="text" placeholder="姓">
+          <input class="form-input" id="kanjiFirst" type="text" placeholder="名">
+        </div>
+      </div>
+      <div class="form-group">
+        <div class="form-label">電話番号 <span class="required">必須</span></div>
+        <input class="form-input" id="tel" type="tel" placeholder="ハイフンなしで入力" oninput="checkStep4()">
+        <div class="form-hint">例：09012345678</div>
+      </div>
+      <div class="form-group">
+        <div class="form-label">メールアドレス</div>
+        <input class="form-input" id="email" type="email" placeholder="例：sample@example.com">
+      </div>
+      <div class="form-group">
+        <div class="form-label">ご要望・メモ</div>
+        <textarea class="form-input" id="memo" rows="3" style="height:auto;padding-top:10px;resize:vertical" placeholder="アレルギー・ご要望などがあればご記入ください"></textarea>
+      </div>
+      <div class="policy-block">
+        <div class="policy-block__title">個人情報の取り扱いについて</div>
+        ご入力いただいた個人情報は、ご予約の確認・管理のみに利用し、第三者への提供はいたしません。
+      </div>
+      <div class="checkbox-row">
+        <input type="checkbox" id="policyAgree" onchange="checkStep4()">
+        <label for="policyAgree" style="font-size:13px;color:#555;cursor:pointer;">個人情報の取り扱いに同意します</label>
+      </div>
+      <div class="next-btn-wrap" style="padding:0 0 24px">
+        <button class="next-btn" id="step4Next" disabled onclick="goStep(5)">予約内容を確認する</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ STEP 5: 確認 ═══ -->
+  <div class="step" id="step5">
+    <div class="step-bar">
+      <div class="step-bar__title">予約内容の確認</div>
+      <div class="step-bar__dots">
+        <div class="step-bar__dot done"></div>
+        <div class="step-bar__dot done"></div>
+        <div class="step-bar__dot done"></div>
+        <div class="step-bar__dot done"></div>
+        <div class="step-bar__dot active"></div>
+      </div>
+    </div>
+    <div class="back-link" onclick="goStep(4)">入力に戻る</div>
+    <div style="padding:14px">
+      <table class="confirm-table" id="confirmTable"></table>
+      <button class="confirm-btn" onclick="submitReservation()">予約を確定する</button>
+      <button class="back-link" onclick="goStep(4)" style="display:block;margin:0 auto;width:100%;text-align:center">入力内容を修正する</button>
+    </div>
+  </div>
+
+  <!-- ═══ STEP 6: 完了 ═══ -->
+  <div class="step" id="step6">
+    <div class="complete-wrap">
+      <div class="complete-wrap__icon">✓</div>
+      <div class="complete-wrap__title">ご予約が完了しました</div>
+      <div class="complete-wrap__text">
+        ご予約いただきありがとうございます。<br>
+        確認のメールをお送りしています。
+      </div>
+      <div class="complete-wrap__box" id="completeBox"></div>
+      <a href="#" onclick="resetAll();return false;" class="next-btn" style="display:flex;text-decoration:none;">トップページへ戻る</a>
+    </div>
+  </div>
+
+</div><!-- /.app -->
+
+<script>
+/* ═══════════════════════════════════════════
+   DATA
+═══════════════════════════════════════════ */
+const STAFF = [
+  {
+    id: 'hair',
+    name: 'ヘアカラー',
+    note: '美容師の指名はできません',
+    desc: '当店の指名はヘアカラーかセルフホワイトニングかまつ毛パーマのメニューの選択です。ヘアカラーをご予約のお客様はこちらを選択してください。',
+    emoji: '💇',
+  },
+  {
+    id: 'white',
+    name: 'セルフホワイトニング',
+    note: '',
+    desc: '当店の指名はヘアカラーかセルフホワイトニングかまつ毛パーマのメニューの選択です。セルフホワイトニングをご予約のお客様はこちらを選択してください。',
+    emoji: '✨',
+  },
+  {
+    id: 'lash',
+    name: 'まつ毛パーマ',
+    note: '',
+    desc: '当店の指名はヘアカラーかセルフホワイトニングかまつ毛パーマのメニューの選択です。まつ毛パーマをご予約のお客様はこちらを選択してください。',
+    emoji: '👁',
+  },
+  {
+    id: 'spa',
+    name: 'ドライヘッドスパ',
+    note: '',
+    desc: '当店の指名はヘアカラーかセルフホワイトニングかまつ毛パーマのメニューの選択です。ドライヘッドスパをご予約のお客様はこちらを選択してください。',
+    emoji: '🧖',
+  },
+];
+
+const MENUS = {
+  hair: [
+    { id: 'h1', name: 'リタッチカラー',       price: '¥4,400〜', time: '60〜70分', desc: 'シャンプー・コンディショナー込み。頭皮から3cmまで。' },
+    { id: 'h2', name: 'フルカラー',           price: '¥6,600〜', time: '90分',     desc: '全体染め。根元から毛先まで均一に染めます。' },
+    { id: 'h3', name: 'カラー＋トリートメント', price: '¥8,800〜', time: '90分',     desc: 'カラー後の傷みをケアする特別トリートメント付き。' },
+    { id: 'h4', name: 'ハイライト',           price: '¥7,700〜', time: '120分',    desc: '部分的にハイライトを入れ、立体感と透明感を演出。' },
+  ],
+  white: [
+    { id: 'w1', name: 'セルフホワイトニング 30分', price: '¥3,300',  time: '30分', desc: '薬剤を使わず安全に自宅ケアの延長線上で行えます。' },
+    { id: 'w2', name: 'セルフホワイトニング 60分', price: '¥5,500',  time: '60分', desc: 'じっくりケアしたい方におすすめのコース。' },
+  ],
+  lash: [
+    { id: 'l1', name: 'まつ毛パーマ（ベーシック）', price: '¥5,500', time: '60分', desc: '自まつ毛を自然にカールアップ。' },
+    { id: 'l2', name: 'まつ毛パーマ＋リフトアップ', price: '¥7,700', time: '75分', desc: 'より際立つ目元に仕上げるリフトアップ付き。' },
+  ],
+  spa: [
+    { id: 's1', name: 'ドライヘッドスパ 30分', price: '¥3,300', time: '30分', desc: '頭皮と首・肩のこりをほぐします。' },
+    { id: 's2', name: 'ドライヘッドスパ 60分', price: '¥5,500', time: '60分', desc: '全身リラックスできる60分コース。' },
+    { id: 's3', name: 'ドライヘッドスパ 90分', price: '¥7,700', time: '90分', desc: '深部まで届くプレミアムコース。' },
+  ],
+};
+
+/* ═══════════════════════════════════════════
+   STATE
+═══════════════════════════════════════════ */
+const state = {
+  staff: null,
+  menu:  null,
+  date:  null,
+  time:  null,
+  calYear:  new Date().getFullYear(),
+  calMonth: new Date().getMonth(),
+};
+
+/* ═══════════════════════════════════════════
+   STEP NAVIGATION
+═══════════════════════════════════════════ */
+function goStep(n) {
+  document.querySelectorAll('.step').forEach((el, i) => {
+    el.classList.toggle('active', i + 1 === n);
+  });
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  if (n === 2) renderMenus();
+  if (n === 3) renderCalendar();
+  if (n === 5) renderConfirm();
+}
+
+/* ═══════════════════════════════════════════
+   STEP 1: STAFF
+═══════════════════════════════════════════ */
+function renderStaff() {
+  const list = document.getElementById('staffList');
+  list.innerHTML = STAFF.map(s => `
+    <div class="card-item" id="staff_${s.id}">
+      <div class="card-item__img">
+        <div class="card-item__img-placeholder">${s.emoji}</div>
+      </div>
+      <div class="card-item__body">
+        <div class="card-item__name">${s.name}</div>
+        ${s.note ? `<div class="card-item__note">${s.note}</div>` : ''}
+        <div class="card-item__desc">${s.desc}</div>
+        ${state.staff === s.id ? `<div class="selected-badge">選択中</div>` : ''}
+      </div>
+      <div class="card-item__action">
+        <button class="select-btn ${state.staff === s.id ? 'selected' : ''}"
+          onclick="selectStaff('${s.id}')">
+          <span class="select-btn__label">${state.staff === s.id ? '選択済' : '選択'}</span>
+          <span class="select-btn__arrow">${state.staff === s.id ? '×' : '▶'}</span>
+        </button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function selectStaff(id) {
+  state.staff = (state.staff === id) ? null : id;
+  state.menu  = null; // リセット
+  renderStaff();
+  document.getElementById('step1Next').disabled = !state.staff;
+}
+
+/* ═══════════════════════════════════════════
+   STEP 2: MENU
+═══════════════════════════════════════════ */
+function renderMenus() {
+  const staffObj = STAFF.find(s => s.id === state.staff);
+  if (staffObj) document.getElementById('menuStepTitle').textContent = staffObj.name + ' のメニューを選択';
+  const menus = MENUS[state.staff] || [];
+  const list = document.getElementById('menuList');
+  list.innerHTML = menus.map(m => `
+    <div class="menu-item" id="menu_${m.id}">
+      <div class="menu-item__header">
+        <div class="menu-item__info">
+          <div class="menu-item__name">${m.name}</div>
+          <div class="menu-item__meta">施術時間：${m.time}</div>
+          ${state.menu === m.id ? `<div class="selected-badge">選択中</div>` : ''}
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px">
+          <div class="menu-item__price">${m.price}</div>
+          <button class="select-btn ${state.menu === m.id ? 'selected' : ''}"
+            onclick="selectMenu('${m.id}')">
+            <span class="select-btn__label">${state.menu === m.id ? '選択済' : '選択'}</span>
+            <span class="select-btn__arrow">${state.menu === m.id ? '×' : '▶'}</span>
+          </button>
+        </div>
+      </div>
+      <div class="menu-item__desc-area">${m.desc}</div>
+    </div>
+  `).join('');
+}
+
+function selectMenu(id) {
+  state.menu = (state.menu === id) ? null : id;
+  state.date = null;
+  state.time = null;
+  renderMenus();
+  document.getElementById('step2Next').disabled = !state.menu;
+}
+
+/* ═══════════════════════════════════════════
+   STEP 3: CALENDAR
+═══════════════════════════════════════════ */
+const DOW = ['日','月','火','水','木','金','土'];
+
+function renderCalendar() {
+  const y = state.calYear, m = state.calMonth;
+  document.getElementById('calMonthLabel').textContent = `${y}年${m+1}月`;
+  const grid = document.getElementById('calGrid');
+  const today = new Date(); today.setHours(0,0,0,0);
+  const first = new Date(y, m, 1).getDay();
+  const days  = new Date(y, m + 1, 0).getDate();
+
+  let html = DOW.map((d, i) => `<div class="calendar-grid__dow">${d}</div>`).join('');
+  for (let i = 0; i < first; i++) html += `<div class="calendar-grid__day empty"></div>`;
+  for (let d = 1; d <= days; d++) {
+    const date = new Date(y, m, d);
+    const dow  = date.getDay();
+    const isPast = date < today;
+    const isSelected = state.date && state.date === `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const cls = [
+      'calendar-grid__day',
+      isPast ? 'past' : '',
+      dow === 0 ? 'sunday' : '',
+      dow === 6 ? 'saturday' : '',
+      !isPast ? 'has-slot' : '',
+      isSelected ? 'selected' : '',
+    ].filter(Boolean).join(' ');
+    const dateStr = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    html += `<div class="${cls}" onclick="selectDate('${dateStr}')">${d}</div>`;
+  }
+  grid.innerHTML = html;
+}
+
+function prevMonth() {
+  if (state.calMonth === 0) { state.calYear--; state.calMonth = 11; }
+  else state.calMonth--;
+  renderCalendar();
+}
+function nextMonth() {
+  if (state.calMonth === 11) { state.calYear++; state.calMonth = 0; }
+  else state.calMonth++;
+  renderCalendar();
+}
+
+function selectDate(dateStr) {
+  state.date = dateStr;
+  state.time = null;
+  renderCalendar();
+  renderTimeSlots(dateStr);
+}
+
+const ALL_TIMES = ['09:00','09:30','10:00','10:30','11:00','11:30','12:00','12:30',
+                   '13:00','13:30','14:00','14:30','15:00','15:30','16:00','16:30',
+                   '17:00','17:30','18:00','18:30','19:00'];
+// サンプルで埋まっている枠（実際はAPIから取得）
+const FULL_SLOTS = {'09:00':true,'11:00':true,'14:00':true,'16:30':true};
+
+function renderTimeSlots(dateStr) {
+  const [y, m, d] = dateStr.split('-');
+  document.getElementById('timeSlotTitle').textContent =
+    `${parseInt(m)}月${parseInt(d)}日 ご希望の時間を選択してください`;
+  const grid = document.getElementById('timeSlotGrid');
+  grid.innerHTML = ALL_TIMES.map(t => {
+    const full = FULL_SLOTS[t];
+    const selected = state.time === t;
+    const cls = ['time-slot', full ? 'full' : '', selected ? 'selected' : ''].filter(Boolean).join(' ');
+    return `<div class="${cls}" onclick="${full ? '' : `selectTime('${t}')`}">${t}</div>`;
+  }).join('');
+  document.getElementById('timeSlots').style.display = 'block';
+  document.getElementById('step3Next').disabled = true;
+}
+
+function selectTime(t) {
+  state.time = t;
+  renderTimeSlots(state.date);
+  document.getElementById('step3Next').disabled = false;
+}
+
+/* ═══════════════════════════════════════════
+   STEP 4: FORM VALIDATION
+═══════════════════════════════════════════ */
+function checkStep4() {
+  const ok = document.getElementById('kanaLast').value.trim() &&
+             document.getElementById('kanaFirst').value.trim() &&
+             document.getElementById('tel').value.trim() &&
+             document.getElementById('policyAgree').checked;
+  document.getElementById('step4Next').disabled = !ok;
+}
+
+/* ═══════════════════════════════════════════
+   STEP 5: CONFIRM
+═══════════════════════════════════════════ */
+function renderConfirm() {
+  const staffObj = STAFF.find(s => s.id === state.staff);
+  const allMenus = Object.values(MENUS).flat();
+  const menuObj  = allMenus.find(m => m.id === state.menu);
+  const kanaLast  = document.getElementById('kanaLast').value;
+  const kanaFirst = document.getElementById('kanaFirst').value;
+  const kanjiLast  = document.getElementById('kanjiLast').value;
+  const kanjiFirst = document.getElementById('kanjiFirst').value;
+  const tel   = document.getElementById('tel').value;
+  const email = document.getElementById('email').value;
+  const memo  = document.getElementById('memo').value;
+
+  const rows = [
+    ['担当者',   staffObj?.name || ''],
+    ['メニュー', menuObj?.name  || ''],
+    ['料金',     menuObj?.price || ''],
+    ['施術時間', menuObj?.time  || ''],
+    ['予約日',   state.date || ''],
+    ['予約時間', state.time || ''],
+    ['氏名（カナ）', `${kanaLast} ${kanaFirst}`],
+    ['氏名（漢字）', [kanjiLast, kanjiFirst].filter(v => v).join(' ')],
+    ['電話番号',     tel],
+    ['メール',       email || '（なし）'],
+    ['ご要望',       memo || '（なし）'],
+  ].filter(r => r[1]);
+
+  document.getElementById('confirmTable').innerHTML =
+    rows.map(([k, v]) => `<tr><th>${k}</th><td>${v}</td></tr>`).join('');
+}
+
+/* ═══════════════════════════════════════════
+   STEP 6: COMPLETE
+═══════════════════════════════════════════ */
+function submitReservation() {
+  const staffObj = STAFF.find(s => s.id === state.staff);
+  const allMenus = Object.values(MENUS).flat();
+  const menuObj  = allMenus.find(m => m.id === state.menu);
+  const kanaLast  = document.getElementById('kanaLast').value;
+  const kanaFirst = document.getElementById('kanaFirst').value;
+
+  document.getElementById('completeBox').innerHTML = `
+    <strong>ご予約内容</strong><br>
+    担当者：${staffObj?.name}<br>
+    メニュー：${menuObj?.name}（${menuObj?.price}）<br>
+    予約日時：${state.date} ${state.time}<br>
+    お名前：${kanaLast} ${kanaFirst} 様
+  `;
+  goStep(6);
+}
+
+function resetAll() {
+  Object.assign(state, { staff: null, menu: null, date: null, time: null });
+  document.getElementById('kanaLast').value = '';
+  document.getElementById('kanaFirst').value = '';
+  document.getElementById('kanjiLast').value = '';
+  document.getElementById('kanjiFirst').value = '';
+  document.getElementById('tel').value = '';
+  document.getElementById('email').value = '';
+  document.getElementById('memo').value = '';
+  document.getElementById('policyAgree').checked = false;
+  goStep(1);
+  renderStaff();
+}
+
+/* ═══════════════════════════════════════════
+   INIT
+═══════════════════════════════════════════ */
+renderStaff();
+</script>
+</body>
+</html>
