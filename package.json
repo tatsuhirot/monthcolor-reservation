@@ -1,7 +1,7 @@
 {
-  "name": "event-auto-register",
+  "name": "monthcolor-reservation",
   "version": "1.0.0",
-  "description": "イベント自動登録ツール",
+  "description": "MONTH COLOR 予約・会計・顧客管理システム",
   "main": "index.js",
   "scripts": {
     "worker": "node worker.js",
