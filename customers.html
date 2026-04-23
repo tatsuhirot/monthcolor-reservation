@@ -161,6 +161,51 @@ body { font-family: "Hiragino Sans", Meiryo, sans-serif; background: #f4f4f4; co
   color: #e60; padding: 2px 7px; border-radius: 4px; margin-left: 6px;
   font-weight: 600;
 }
+.rank-badge {
+  display: inline-block; font-size: 10px; padding: 2px 7px;
+  border-radius: 4px; margin-left: 6px; font-weight: 700;
+}
+.rank-vip    { background: #fff3cd; color: #856404; }
+.rank-regular{ background: #e8f4f8; color: #0c6d9e; }
+.rank-new    { background: #f0f0f0; color: #666; }
+
+/* ── ソートバー ── */
+.sort-bar {
+  display: flex; gap: 8px; margin-bottom: 12px; align-items: center;
+}
+.sort-bar span { font-size: 12px; color: #888; }
+.sort-btn {
+  padding: 4px 10px; background: #fff; border: 1px solid #ddd;
+  border-radius: 6px; font-size: 12px; cursor: pointer; color: #555;
+}
+.sort-btn.active { background: #333; color: #fff; border-color: #333; }
+
+/* ── スタッフメモ ── */
+.note-section {
+  border-top: 1px dashed #eee; padding: 12px 0 4px; margin-top: 8px;
+}
+.note-label {
+  font-size: 11px; color: #aaa; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.5px; margin-bottom: 8px;
+}
+.note-textarea {
+  width: 100%; min-height: 64px; padding: 8px 10px;
+  border: 1px solid #e0e0e0; border-radius: 6px;
+  font-size: 13px; font-family: inherit; resize: vertical;
+  background: #fafafa; color: #333; line-height: 1.6;
+}
+.note-textarea:focus { outline: none; border-color: #aaa; background: #fff; }
+.note-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; }
+.note-updated { font-size: 10px; color: #bbb; }
+.btn-save-note {
+  padding: 5px 14px; background: #333; color: #fff; border: none;
+  border-radius: 6px; font-size: 12px; cursor: pointer;
+}
+.btn-save-note:hover { background: #555; }
+.has-note-dot {
+  display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+  background: #4caf50; margin-left: 6px; vertical-align: middle;
+}
 </style>
 </head>
 <body>
@@ -196,6 +241,12 @@ body { font-family: "Hiragino Sans", Meiryo, sans-serif; background: #f4f4f4; co
       <button class="btn-clear"  onclick="clearSearch()">✕</button>
     </div>
     <div class="summary-bar" id="summaryBar"></div>
+    <div class="sort-bar" id="sortBar" style="display:none">
+      <span>並び替え：</span>
+      <button class="sort-btn active" onclick="setSort('lastVisit')">最終来店</button>
+      <button class="sort-btn" onclick="setSort('visitCount')">来店回数</button>
+      <button class="sort-btn" onclick="setSort('totalSpent')">累計売上</button>
+    </div>
     <div class="customer-list" id="customerList">
       <div class="loading">読み込み中...</div>
     </div>
@@ -207,6 +258,32 @@ body { font-family: "Hiragino Sans", Meiryo, sans-serif; background: #f4f4f4; co
 <script>
 let token = '';
 let allCustomers = [];
+let currentSort = 'lastVisit';
+
+function getRank(c) {
+  if (c.visitCount >= 5 || c.totalSpent >= 50000) return { label: '★ VIP',  cls: 'rank-vip' };
+  if (c.visitCount >= 2)                           return { label: '常連',   cls: 'rank-regular' };
+  return                                                  { label: '新規',   cls: 'rank-new' };
+}
+
+function setSort(key) {
+  currentSort = key;
+  document.querySelectorAll('.sort-btn').forEach(b =>
+    b.classList.toggle('active', b.textContent.trim() === {lastVisit:'最終来店', visitCount:'来店回数', totalSpent:'累計売上'}[key])
+  );
+  const list = document.getElementById('searchInput').value.trim()
+    ? null   // 検索中は全件を使わない
+    : allCustomers;
+  if (list) renderList(list);
+}
+
+function sortCustomers(arr) {
+  return [...arr].sort((a, b) => {
+    if (currentSort === 'visitCount') return b.visitCount - a.visitCount;
+    if (currentSort === 'totalSpent') return b.totalSpent - a.totalSpent;
+    return (b.lastVisit || '').localeCompare(a.lastVisit || '');
+  });
+}
 
 /* ── 認証 ─────────────────────────────────────────── */
 async function login() {
@@ -266,16 +343,20 @@ function renderList(customers) {
   const list = document.getElementById('customerList');
   const summary = document.getElementById('summaryBar');
 
+  const sortBar = document.getElementById('sortBar');
+
   if (!customers.length) {
     list.innerHTML = '<div class="empty-state">該当する顧客が見つかりません</div>';
     summary.textContent = '';
+    sortBar.style.display = 'none';
     return;
   }
 
   const totalVisits = customers.reduce((s, c) => s + c.visitCount, 0);
   summary.textContent = `${customers.length}名 / 累計 ${totalVisits}来店`;
+  sortBar.style.display = 'flex';
 
-  list.innerHTML = customers.map(c => renderCustomerCard(c)).join('');
+  list.innerHTML = sortCustomers(customers).map(c => renderCustomerCard(c)).join('');
 }
 
 function renderCustomerCard(c) {
@@ -306,11 +387,23 @@ function renderCustomerCard(c) {
     ? `<span class="fav-badge">★ ${c.favoriteMenu}</span>`
     : '';
 
+  const rank = getRank(c);
+  const rankBadge = `<span class="rank-badge ${rank.cls}">${rank.label}</span>`;
+
+  const phone = c.phone || '';
+  const name  = c.name  || '';
+
   return `
-    <div class="customer-card" onclick="toggleCard(this)">
+    <div class="customer-card"
+         data-phone="${phone.replace(/"/g,'&quot;')}"
+         data-name="${name.replace(/"/g,'&quot;')}"
+         onclick="toggleCard(this)">
       <div class="customer-header">
         <div>
-          <div class="customer-name">${c.name || '不明'}${favBadge}</div>
+          <div class="customer-name">
+            ${c.name || '不明'}${rankBadge}${favBadge}
+            <span class="has-note-dot" style="display:none" title="メモあり"></span>
+          </div>
           <div class="customer-phone">${c.phone || '電話番号なし'}</div>
         </div>
         <div style="display:flex;align-items:center">
@@ -338,12 +431,93 @@ function renderCustomerCard(c) {
       <div class="customer-history">
         <div class="history-title">来店履歴（${c.visitCount}件）</div>
         ${historyRows || '<div style="padding:12px 0;color:#aaa;font-size:13px">履歴なし</div>'}
+        <div class="note-section" onclick="event.stopPropagation()">
+          <div class="note-label">📝 スタッフメモ</div>
+          <textarea class="note-textarea" placeholder="アレルギー情報・カラー傾向・施術メモなど..."></textarea>
+          <div class="note-footer">
+            <span class="note-updated"></span>
+            <button class="btn-save-note" onclick="saveNote(this)">保存</button>
+          </div>
+        </div>
       </div>
     </div>`;
 }
 
 function toggleCard(el) {
+  const wasOpen = el.classList.contains('open');
   el.classList.toggle('open');
+  if (!wasOpen) loadNoteForCard(el);
+}
+
+/* ── メモ ──────────────────────────────────────────── */
+async function loadNoteForCard(cardEl) {
+  const phone    = cardEl.dataset.phone;
+  const name     = cardEl.dataset.name;
+  const textarea = cardEl.querySelector('.note-textarea');
+  const updated  = cardEl.querySelector('.note-updated');
+  if (!textarea) return;
+
+  const params = phone
+    ? `phone=${encodeURIComponent(phone)}`
+    : `name=${encodeURIComponent(name)}`;
+
+  try {
+    const res  = await fetch(`/api/customer-note?${params}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const data = await res.json();
+    if (data.note) {
+      textarea.value = data.note;
+      const d = new Date(data.updatedAt);
+      updated.textContent = `最終更新: ${d.toLocaleDateString('ja-JP')} ${d.toLocaleTimeString('ja-JP', { hour:'2-digit', minute:'2-digit' })}`;
+      // メモありインジケーター
+      cardEl.querySelector('.has-note-dot').style.display = 'inline-block';
+    }
+  } catch {
+    // ネットワーク失敗は無視
+  }
+}
+
+async function saveNote(btnEl) {
+  const cardEl   = btnEl.closest('.customer-card');
+  const phone    = cardEl.dataset.phone;
+  const name     = cardEl.dataset.name;
+  const textarea = cardEl.querySelector('.note-textarea');
+  const updated  = cardEl.querySelector('.note-updated');
+  const dot      = cardEl.querySelector('.has-note-dot');
+  const note     = textarea.value;
+
+  btnEl.disabled = true;
+  btnEl.textContent = '保存中…';
+
+  try {
+    const res = await fetch('/api/customer-note', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ phone, name, note }),
+    });
+
+    if (!res.ok) throw new Error('保存失敗');
+
+    if (note.trim()) {
+      const now = new Date();
+      updated.textContent = `最終更新: ${now.toLocaleDateString('ja-JP')} ${now.toLocaleTimeString('ja-JP', { hour:'2-digit', minute:'2-digit' })}`;
+      dot.style.display = 'inline-block';
+      toast('メモを保存しました');
+    } else {
+      updated.textContent = '';
+      dot.style.display = 'none';
+      toast('メモを削除しました');
+    }
+  } catch {
+    toast('保存に失敗しました', true);
+  } finally {
+    btnEl.disabled = false;
+    btnEl.textContent = '保存';
+  }
 }
 
 /* ── トースト ──────────────────────────────────────── */
