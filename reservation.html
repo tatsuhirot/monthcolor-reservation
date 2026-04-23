@@ -385,6 +385,19 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
    CALENDAR (step 3)
 ═══════════════════════════════════════════ */
 .calendar-wrap { padding: 14px; }
+.calendar-loading {
+  text-align: center;
+  padding: 24px 0;
+  font-size: 13px;
+  color: #999;
+}
+.calendar-slots-info {
+  text-align: right;
+  font-size: 11px;
+  color: #aaa;
+  margin-bottom: 6px;
+  min-height: 16px;
+}
 .calendar-nav {
   display: flex;
   align-items: center;
@@ -430,8 +443,9 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
   transition: background .15s;
   position: relative;
 }
-.calendar-grid__day.empty { pointer-events: none; }
-.calendar-grid__day.past  { color: #ccc; pointer-events: none; }
+.calendar-grid__day.empty    { pointer-events: none; }
+.calendar-grid__day.past     { color: #ccc; pointer-events: none; }
+.calendar-grid__day:not(.has-slot):not(.past):not(.empty) { color: #ccc; pointer-events: none; }
 .calendar-grid__day.sunday { color: #e00; }
 .calendar-grid__day.saturday { color: #07f; }
 .calendar-grid__day.has-slot::after {
@@ -671,6 +685,22 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
   cursor: pointer;
 }
 .back-link::before { content: '‹ '; font-size: 16px; }
+
+/* INLINE ERROR */
+.form-error {
+  background: #fff0f0;
+  border: 1px solid #f5c0c0;
+  border-radius: 6px;
+  padding: 10px 14px;
+  font-size: 13px;
+  color: #c00;
+  margin-bottom: 14px;
+  display: none;
+  line-height: 1.5;
+}
+.form-error.visible { display: block; }
+.form-input.error { border-color: #e00; background: #fff8f8; }
+.form-hint.error  { color: #c00; font-weight: 600; }
 </style>
 </head>
 <body>
@@ -765,6 +795,8 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
     </div>
     <div class="back-link" onclick="goStep(2)">メニュー選択に戻る</div>
     <div class="calendar-wrap">
+      <div id="calLoading" class="calendar-loading" style="display:none">空き枠を確認中...</div>
+      <div id="calSlotsInfo" class="calendar-slots-info"></div>
       <div class="calendar-nav">
         <button class="calendar-nav__btn" onclick="prevMonth()">‹</button>
         <div class="calendar-nav__month" id="calMonthLabel"></div>
@@ -851,7 +883,8 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
     <div class="back-link" onclick="goStep(4)">入力に戻る</div>
     <div style="padding:14px">
       <table class="confirm-table" id="confirmTable"></table>
-      <button class="confirm-btn" onclick="submitReservation()">予約を確定する</button>
+      <div class="form-error" id="submitError"></div>
+      <button class="confirm-btn" id="confirmBtn" onclick="submitReservation()">予約を確定する</button>
       <button class="back-link" onclick="goStep(4)" style="display:block;margin:0 auto;width:100%;text-align:center">入力内容を修正する</button>
     </div>
   </div>
@@ -873,6 +906,14 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
 </div><!-- /.app -->
 
 <script>
+/* ═══════════════════════════════════════════
+   API サーバー設定
+   ローカル起動時: http://localhost:3001
+   公開URL（Cloudflare Tunnel等）に変えてください
+═══════════════════════════════════════════ */
+// Vercel API Route（固定URL）— トンネルもローカルサーバーも不要
+const SERVER_URL = '';
+
 /* ═══════════════════════════════════════════
    DATA
 ═══════════════════════════════════════════ */
@@ -950,7 +991,11 @@ function goStep(n) {
   });
   window.scrollTo({ top: 0, behavior: 'smooth' });
   if (n === 2) renderMenus();
-  if (n === 3) renderCalendar();
+  if (n === 3) {
+    const grid = document.getElementById('calGrid');
+    if (grid) grid.innerHTML = '';
+    loadSlots().then(() => renderCalendar());
+  }
   if (n === 5) renderConfirm();
 }
 
@@ -1045,22 +1090,25 @@ function renderCalendar() {
     const date = new Date(y, m, d);
     const dow  = date.getDay();
     const isPast = date < today;
-    const isSelected = state.date && state.date === `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const dateStr = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const isSelected = state.date && state.date === dateStr;
+    const hasSlot = !isPast && (AVAILABLE_SLOTS === null || (AVAILABLE_SLOTS[dateStr] && AVAILABLE_SLOTS[dateStr].length > 0));
     const cls = [
       'calendar-grid__day',
       isPast ? 'past' : '',
       dow === 0 ? 'sunday' : '',
       dow === 6 ? 'saturday' : '',
-      !isPast ? 'has-slot' : '',
+      hasSlot ? 'has-slot' : '',
       isSelected ? 'selected' : '',
     ].filter(Boolean).join(' ');
-    const dateStr = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     html += `<div class="${cls}" onclick="selectDate('${dateStr}')">${d}</div>`;
   }
   grid.innerHTML = html;
 }
 
 function prevMonth() {
+  const now = new Date();
+  if (state.calYear === now.getFullYear() && state.calMonth === now.getMonth()) return; // 今月以前には戻れない
   if (state.calMonth === 0) { state.calYear--; state.calMonth = 11; }
   else state.calMonth--;
   renderCalendar();
@@ -1081,19 +1129,58 @@ function selectDate(dateStr) {
 const ALL_TIMES = ['09:00','09:30','10:00','10:30','11:00','11:30','12:00','12:30',
                    '13:00','13:30','14:00','14:30','15:00','15:30','16:00','16:30',
                    '17:00','17:30','18:00','18:30','19:00'];
-// サンプルで埋まっている枠（実際はAPIから取得）
-const FULL_SLOTS = {'09:00':true,'11:00':true,'14:00':true,'16:30':true};
+
+// 空き枠データ: { "YYYY-MM-DD": ["HH:MM", ...] }
+// null = APIから取得できなかった or 未同期（フォールバック: 全枠表示）
+let AVAILABLE_SLOTS = null;
+let slotsLoaded = false;
+
+async function loadSlots() {
+  if (slotsLoaded) return;
+
+  const loading = document.getElementById('calLoading');
+  const info    = document.getElementById('calSlotsInfo');
+  if (loading) loading.style.display = 'block';
+
+  try {
+    const res = await fetch('/api/slots');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+
+    // null → 未同期（全枠表示）、{} → 空データ（全枠埋まり）、{...} → 実データ
+    AVAILABLE_SLOTS = data.slots;
+
+    if (data.updatedAt && info) {
+      const d = new Date(data.updatedAt);
+      const fmt = `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')} 更新`;
+      info.textContent = fmt;
+    } else if (info) {
+      info.textContent = 'リアルタイム空き枠（未同期：全枠表示）';
+    }
+  } catch (e) {
+    console.warn('空き枠データ取得失敗。全枠を表示します。', e);
+    AVAILABLE_SLOTS = null; // フォールバック: 全枠を表示
+    if (info) info.textContent = '空き枠情報を取得できませんでした';
+  }
+
+  slotsLoaded = true;
+  if (loading) loading.style.display = 'none';
+}
 
 function renderTimeSlots(dateStr) {
   const [y, m, d] = dateStr.split('-');
   document.getElementById('timeSlotTitle').textContent =
     `${parseInt(m)}月${parseInt(d)}日 ご希望の時間を選択してください`;
   const grid = document.getElementById('timeSlotGrid');
+
+  // その日の空き枠。null（フォールバック）は全枠表示。未取得の日は空
+  const availForDate = AVAILABLE_SLOTS === null ? null : (AVAILABLE_SLOTS[dateStr] || []);
+
   grid.innerHTML = ALL_TIMES.map(t => {
-    const full = FULL_SLOTS[t];
+    const available = availForDate === null || availForDate.includes(t);
     const selected = state.time === t;
-    const cls = ['time-slot', full ? 'full' : '', selected ? 'selected' : ''].filter(Boolean).join(' ');
-    return `<div class="${cls}" onclick="${full ? '' : `selectTime('${t}')`}">${t}</div>`;
+    const cls = ['time-slot', !available ? 'full' : '', selected ? 'selected' : ''].filter(Boolean).join(' ');
+    return `<div class="${cls}" onclick="${!available ? '' : `selectTime('${t}')`}">${t}</div>`;
   }).join('');
   document.getElementById('timeSlots').style.display = 'block';
   document.getElementById('step3Next').disabled = true;
@@ -1109,12 +1196,39 @@ function selectTime(t) {
    STEP 4: FORM VALIDATION
 ═══════════════════════════════════════════ */
 function checkStep4() {
-  const ok = document.getElementById('kanaLast').value.trim() &&
-             document.getElementById('kanaFirst').value.trim() &&
-             document.getElementById('tel').value.trim() &&
-             document.getElementById('policyAgree').checked;
-  document.getElementById('step4Next').disabled = !ok;
+  const kanaLast  = document.getElementById('kanaLast').value.trim();
+  const kanaFirst = document.getElementById('kanaFirst').value.trim();
+  const tel       = document.getElementById('tel').value.trim();
+  const agreed    = document.getElementById('policyAgree').checked;
+
+  // 電話番号: 数字のみ 10〜11桁
+  const telOk = /^\d{10,11}$/.test(tel.replace(/-/g, ''));
+
+  // カナ: ひらがな・カタカナ・スペースのみ許容
+  const kanaOk = kanaLast && kanaFirst &&
+    /^[\u3040-\u30ff\s　]+$/.test(kanaLast + kanaFirst);
+
+  // エラー表示
+  const telInput = document.getElementById('tel');
+  const telHint  = telInput.nextElementSibling; // .form-hint
+  if (tel && !telOk) {
+    telInput.classList.add('error');
+    if (telHint) { telHint.classList.add('error'); telHint.textContent = '10〜11桁の数字で入力してください'; }
+  } else {
+    telInput.classList.remove('error');
+    if (telHint) { telHint.classList.remove('error'); telHint.textContent = '例：09012345678'; }
+  }
+
+  document.getElementById('step4Next').disabled = !(kanaOk && telOk && agreed);
 }
+
+// 電話番号: 数字とハイフン以外を入力させない
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('tel').addEventListener('input', e => {
+    e.target.value = e.target.value.replace(/[^\d-]/g, '');
+    checkStep4();
+  });
+});
 
 /* ═══════════════════════════════════════════
    STEP 5: CONFIRM
@@ -1152,21 +1266,66 @@ function renderConfirm() {
 /* ═══════════════════════════════════════════
    STEP 6: COMPLETE
 ═══════════════════════════════════════════ */
-function submitReservation() {
+async function submitReservation() {
   const staffObj = STAFF.find(s => s.id === state.staff);
   const allMenus = Object.values(MENUS).flat();
   const menuObj  = allMenus.find(m => m.id === state.menu);
-  const kanaLast  = document.getElementById('kanaLast').value;
-  const kanaFirst = document.getElementById('kanaFirst').value;
 
-  document.getElementById('completeBox').innerHTML = `
-    <strong>ご予約内容</strong><br>
-    担当者：${staffObj?.name}<br>
-    メニュー：${menuObj?.name}（${menuObj?.price}）<br>
-    予約日時：${state.date} ${state.time}<br>
-    お名前：${kanaLast} ${kanaFirst} 様
-  `;
-  goStep(6);
+  const kanjiLast  = document.getElementById('kanjiLast').value.trim();
+  const kanjiFirst = document.getElementById('kanjiFirst').value.trim();
+  const kanaLast   = document.getElementById('kanaLast').value.trim();
+  const kanaFirst  = document.getElementById('kanaFirst').value.trim();
+  const tel        = document.getElementById('tel').value.trim();
+  const email      = document.getElementById('email').value.trim();
+  const memo       = document.getElementById('memo').value.trim();
+
+  // 氏名: 漢字が入力されていればそちらを優先、なければカナ
+  const name = (kanjiLast && kanjiFirst)
+    ? `${kanjiLast} ${kanjiFirst}`
+    : `${kanaLast} ${kanaFirst}`;
+
+  // ボタンをローディング状態にする
+  const btn = document.getElementById('confirmBtn');
+  btn.disabled = true;
+  btn.textContent = '送信中...';
+
+  try {
+    const res = await fetch('/api/reserve', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        date:          state.date,
+        time:          state.time,
+        name,
+        menuName:      menuObj?.name ?? '',
+        staffCategory: staffObj?.id ?? '',
+        phone:         tel,
+        email,
+        memo,
+      }),
+    });
+
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || '予約の送信に失敗しました');
+
+    // 完了画面へ
+    document.getElementById('completeBox').innerHTML = `
+      <strong>ご予約内容</strong><br>
+      担当：${staffObj?.name}<br>
+      メニュー：${menuObj?.name}（${menuObj?.price}）<br>
+      予約日時：${state.date} ${state.time}<br>
+      お名前：${name} 様
+    `;
+    goStep(6);
+
+  } catch (err) {
+    const errEl = document.getElementById('submitError');
+    errEl.textContent = `エラーが発生しました: ${err.message}　お電話（03-6820-5623）にてご予約ください。`;
+    errEl.classList.add('visible');
+    errEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    btn.disabled = false;
+    btn.textContent = '予約を確定する';
+  }
 }
 
 function resetAll() {

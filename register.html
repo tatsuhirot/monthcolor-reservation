@@ -1,0 +1,940 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MONTH COLOR — 会計</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: "Hiragino Sans", Meiryo, sans-serif; background: #f4f4f4; color: #333; font-size: 14px; }
+
+/* ── ログイン ── */
+#loginScreen { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+.login-card {
+  background: #fff; border-radius: 12px; padding: 40px 32px;
+  box-shadow: 0 4px 24px rgba(0,0,0,.1); width: 320px; text-align: center;
+}
+.login-card h1 { font-size: 18px; margin-bottom: 8px; }
+.login-card p  { color: #888; font-size: 12px; margin-bottom: 24px; }
+.login-card input {
+  width: 100%; padding: 10px 14px; border: 1px solid #ddd; border-radius: 8px;
+  font-size: 14px; margin-bottom: 16px;
+}
+.login-card button {
+  width: 100%; padding: 12px; background: #e60; color: #fff;
+  border: none; border-radius: 8px; font-size: 15px; cursor: pointer;
+}
+.login-card button:hover { background: #c50; }
+.error-msg { color: #c00; font-size: 12px; margin-top: 8px; }
+
+/* ── メイン ── */
+#mainScreen { display: none; }
+.header {
+  background: #fff; border-bottom: 1px solid #e0e0e0;
+  padding: 12px 20px; display: flex; align-items: center; justify-content: space-between;
+}
+.header h1 { font-size: 16px; }
+.header-actions { display: flex; gap: 8px; align-items: center; }
+.header .date-label { font-size: 13px; color: #888; }
+.header .logout-btn {
+  background: none; border: 1px solid #ddd; border-radius: 6px;
+  padding: 6px 12px; font-size: 12px; cursor: pointer; color: #666;
+}
+
+/* ── タブ ── */
+.tabs { display: flex; background: #fff; border-bottom: 1px solid #e0e0e0; }
+.tab {
+  flex: 1; padding: 14px; text-align: center; font-size: 14px;
+  cursor: pointer; color: #888; border-bottom: 3px solid transparent;
+}
+.tab.active { color: #e60; border-bottom-color: #e60; font-weight: 700; }
+
+.container { max-width: 700px; margin: 0 auto; padding: 20px; }
+
+/* ── カード ── */
+.card {
+  background: #fff; border-radius: 10px; padding: 16px;
+  margin-bottom: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.08);
+}
+.card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.card-name { font-size: 15px; font-weight: 700; }
+.card-time { font-size: 13px; color: #888; }
+.card-meta { font-size: 13px; color: #555; margin-bottom: 10px; }
+.card-meta span { margin-right: 12px; }
+.card-price { font-size: 18px; font-weight: 700; color: #e60; }
+.card-footer { display: flex; gap: 8px; margin-top: 12px; }
+
+/* ── ボタン ── */
+.btn {
+  padding: 9px 18px; border-radius: 8px; border: none;
+  font-size: 13px; cursor: pointer; font-weight: 600;
+}
+.btn-primary { background: #e60; color: #fff; }
+.btn-primary:hover { background: #c50; }
+.btn-secondary { background: #f0f0f0; color: #555; }
+.btn-secondary:hover { background: #e0e0e0; }
+.btn-green  { background: #2a9d2a; color: #fff; }
+.btn-green:hover { background: #228022; }
+.btn-outline { background: #fff; border: 1px solid #ddd; color: #555; }
+.btn-outline:hover { background: #f5f5f5; }
+.btn:disabled { opacity: .4; cursor: not-allowed; }
+
+/* ── バッジ ── */
+.badge {
+  display: inline-block; padding: 2px 8px; border-radius: 20px;
+  font-size: 11px; font-weight: 700;
+}
+.badge-pending   { background: #fff3e0; color: #e67e00; }
+.badge-checkedin { background: #e8f5e9; color: #2a9d2a; }
+.badge-completed { background: #e8eaf6; color: #3f51b5; }
+.badge-noshow    { background: #f5f5f5; color: #999; }
+
+/* ── 空表示 ── */
+.empty { text-align: center; color: #aaa; padding: 40px 0; font-size: 14px; }
+
+/* ── モーダル ── */
+.modal-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,.5); z-index: 100;
+  align-items: center; justify-content: center;
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: #fff; border-radius: 16px; padding: 28px 24px;
+  width: 90%; max-width: 440px; box-shadow: 0 8px 40px rgba(0,0,0,.2);
+}
+.modal h2 { font-size: 16px; margin-bottom: 16px; }
+.modal-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.modal-label { font-size: 13px; color: #666; }
+.modal-value { font-size: 14px; font-weight: 600; }
+.modal-price { font-size: 24px; font-weight: 700; color: #e60; }
+.modal-divider { border: none; border-top: 1px solid #eee; margin: 16px 0; }
+
+/* 支払方法選択 */
+.payment-opts { display: flex; gap: 10px; margin: 16px 0; }
+.payment-opt {
+  flex: 1; padding: 14px 8px; border-radius: 10px; border: 2px solid #e0e0e0;
+  text-align: center; cursor: pointer; font-size: 13px; font-weight: 600;
+  background: #fff; transition: all .15s;
+}
+.payment-opt:hover { border-color: #e60; color: #e60; }
+.payment-opt.selected { border-color: #e60; background: #fff7f0; color: #e60; }
+.payment-icon { font-size: 22px; display: block; margin-bottom: 4px; }
+
+/* 割引入力 */
+.discount-row { display: flex; align-items: center; gap: 8px; margin: 12px 0; }
+.discount-row label { font-size: 13px; color: #666; white-space: nowrap; }
+.discount-row input {
+  flex: 1; padding: 8px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px;
+}
+
+.modal-actions { display: flex; gap: 10px; margin-top: 20px; }
+.modal-actions .btn { flex: 1; padding: 12px; font-size: 14px; }
+
+/* ── チェックイン入力フォーム ── */
+.checkin-form { display: flex; flex-direction: column; gap: 12px; }
+.form-row label { display: block; font-size: 12px; color: #888; margin-bottom: 4px; }
+.form-row input, .form-row select {
+  width: 100%; padding: 9px 12px; border: 1px solid #ddd; border-radius: 8px;
+  font-size: 14px; background: #fff;
+}
+.form-row input:focus, .form-row select:focus {
+  outline: none; border-color: #e60;
+}
+
+/* ── トースト ── */
+.toast {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+  background: #333; color: #fff; padding: 12px 24px; border-radius: 24px;
+  font-size: 13px; opacity: 0; transition: opacity .3s; pointer-events: none; z-index: 200;
+}
+.toast.show { opacity: 1; }
+
+/* ── セクションタイトル ── */
+.section-title {
+  font-size: 12px; color: #aaa; text-transform: uppercase; letter-spacing: .05em;
+  margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #eee;
+}
+.refresh-btn {
+  background: none; border: none; color: #e60; font-size: 12px; cursor: pointer;
+  padding: 4px 8px;
+}
+/* ── 印刷用レシート ── */
+#receipt-print { display: none; }
+
+@media print {
+  body > * { display: none !important; }
+  #receipt-print {
+    display: block !important;
+    font-family: "Hiragino Sans", Meiryo, monospace;
+    font-size: 12px;
+    color: #000;
+    width: 58mm;
+    margin: 0 auto;
+    padding: 4mm;
+  }
+  #receipt-print .rcp-shop {
+    text-align: center; font-weight: 700; font-size: 15px; margin-bottom: 2mm;
+  }
+  #receipt-print .rcp-addr {
+    text-align: center; font-size: 9px; color: #555; line-height: 1.5; margin-bottom: 3mm;
+  }
+  #receipt-print .rcp-divider {
+    border: none; border-top: 1px dashed #000; margin: 3mm 0;
+  }
+  #receipt-print .rcp-row {
+    display: flex; justify-content: space-between; margin-bottom: 1.5mm; font-size: 11px;
+  }
+  #receipt-print .rcp-total {
+    display: flex; justify-content: space-between;
+    font-weight: 700; font-size: 14px; margin: 2mm 0;
+  }
+  #receipt-print .rcp-footer {
+    text-align: center; font-size: 10px; color: #555; margin-top: 4mm; line-height: 1.8;
+  }
+  #receipt-print .rcp-stamp {
+    border: 2px solid #000; border-radius: 50%; width: 18mm; height: 18mm;
+    margin: 4mm auto; display: flex; align-items: center; justify-content: center;
+    font-size: 9px; text-align: center; line-height: 1.4;
+  }
+}
+
+/* ── 顧客カルテ ── */
+.customer-card {
+  background: #fff; border-radius: 10px; padding: 16px;
+  margin-bottom: 10px; box-shadow: 0 1px 4px rgba(0,0,0,.08);
+  cursor: pointer; transition: box-shadow .15s;
+}
+.customer-card:hover { box-shadow: 0 3px 12px rgba(0,0,0,.12); }
+.customer-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.customer-name { font-size: 15px; font-weight: 700; }
+.customer-phone { font-size: 12px; color: #888; }
+.customer-stats { display: flex; gap: 16px; font-size: 12px; color: #555; margin-bottom: 8px; }
+.customer-stat-val { font-weight: 700; color: #333; }
+.customer-fav { font-size: 12px; color: #e60; }
+.visit-tag {
+  display: inline-block; background: #fff7f0; border: 1px solid #fcd; border-radius: 20px;
+  padding: 2px 10px; font-size: 11px; color: #e60; margin-right: 4px;
+}
+</style>
+</head>
+<body>
+
+<!-- ── ログイン画面 ── -->
+<div id="loginScreen">
+  <div class="login-card">
+    <h1>MONTH COLOR</h1>
+    <p>スタッフ専用 会計システム</p>
+    <input type="password" id="loginPw" placeholder="管理パスワード" autocomplete="current-password">
+    <button onclick="doLogin()">ログイン</button>
+    <div class="error-msg" id="loginError"></div>
+  </div>
+</div>
+
+<!-- ── メイン画面 ── -->
+<div id="mainScreen">
+  <div class="header">
+    <h1>MONTH COLOR 会計</h1>
+    <div class="header-actions">
+      <span class="date-label" id="todayLabel"></span>
+      <a href="/admin"  class="logout-btn" style="text-decoration:none">📋 予約管理</a>
+      <a href="/report" class="logout-btn" style="text-decoration:none">📊 レポート</a>
+      <button class="logout-btn" onclick="doLogout()">ログアウト</button>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" id="tab-today"   onclick="switchTab('today')">今日の予約</div>
+    <div class="tab"        id="tab-checkin" onclick="switchTab('checkin')">手動チェックイン</div>
+    <div class="tab"        id="tab-waiting" onclick="switchTab('waiting')">会計待ち</div>
+    <div class="tab"        id="tab-customers" onclick="switchTab('customers')">顧客カルテ</div>
+  </div>
+
+  <!-- 今日の予約タブ -->
+  <div id="pane-today" class="container">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <div class="section-title" style="margin:0">今日の予約一覧</div>
+      <button class="refresh-btn" onclick="loadTodayReservations()">↻ 更新</button>
+    </div>
+    <div id="todayList"><div class="empty">読み込み中...</div></div>
+  </div>
+
+  <!-- 手動チェックインタブ -->
+  <div id="pane-checkin" class="container" style="display:none">
+    <div class="section-title">飛び込み来店 / 電話予約チェックイン</div>
+    <div class="card">
+      <div class="checkin-form">
+        <div class="form-row">
+          <label>お客様氏名 *</label>
+          <input type="text" id="ci-name" placeholder="山田 花子">
+        </div>
+        <div class="form-row">
+          <label>電話番号</label>
+          <input type="tel" id="ci-phone" placeholder="09012345678">
+        </div>
+        <div class="form-row">
+          <label>メニュー</label>
+          <select id="ci-menu">
+            <option value="">-- メニューを選択 --</option>
+            <optgroup label="ヘアカラー">
+              <option value="h1">リタッチカラー ¥4,400〜</option>
+              <option value="h2">フルカラー ¥6,600〜</option>
+              <option value="h3">カラー＋トリートメント ¥8,800〜</option>
+              <option value="h4">ハイライト ¥7,700〜</option>
+            </optgroup>
+            <optgroup label="ホワイトニング">
+              <option value="w1">セルフホワイトニング 30分 ¥3,300</option>
+              <option value="w2">セルフホワイトニング 60分 ¥5,500</option>
+            </optgroup>
+            <optgroup label="まつ毛パーマ">
+              <option value="l1">まつ毛パーマ（ベーシック）¥5,500</option>
+              <option value="l2">まつ毛パーマ＋リフトアップ ¥7,700</option>
+            </optgroup>
+            <optgroup label="ヘッドスパ">
+              <option value="s1">ドライヘッドスパ 30分 ¥3,300</option>
+              <option value="s2">ドライヘッドスパ 60分 ¥5,500</option>
+              <option value="s3">ドライヘッドスパ 90分 ¥7,700</option>
+            </optgroup>
+          </select>
+        </div>
+        <div class="form-row">
+          <label>担当スタッフ</label>
+          <select id="ci-staff">
+            <option value="">-- 担当を選択 --</option>
+            <option value="ヘアカラー">ヘアカラー担当</option>
+            <option value="ホワイトニング">ホワイトニング担当</option>
+            <option value="まつ毛パーマ">まつ毛パーマ担当</option>
+            <option value="ドライヘッドスパ">ドライヘッドスパ担当</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" onclick="doManualCheckin()">チェックイン</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 会計待ちタブ -->
+  <div id="pane-waiting" class="container" style="display:none">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <div class="section-title" style="margin:0">会計待ち（チェックイン済み）</div>
+      <button class="refresh-btn" onclick="loadWaiting()">↻ 更新</button>
+    </div>
+    <div id="waitingList"><div class="empty">読み込み中...</div></div>
+
+    <!-- 本日の会計完了 -->
+    <details id="completedSection" style="margin-top:20px" open>
+      <summary style="font-size:13px;font-weight:600;color:#888;cursor:pointer;padding:8px 0;border-top:1px solid #eee;list-style:none;display:flex;align-items:center;gap:6px">
+        ✅ 本日の会計完了
+        <span id="completedCount" style="background:#4caf50;color:#fff;border-radius:10px;padding:1px 8px;font-size:11px">0</span>
+      </summary>
+      <div id="completedList" style="margin-top:8px"></div>
+    </details>
+  </div>
+
+  <!-- 顧客カルテタブ -->
+  <div id="pane-customers" class="container" style="display:none">
+    <div class="section-title">顧客カルテ</div>
+    <!-- 検索バー -->
+    <div style="display:flex;gap:8px;margin-bottom:16px">
+      <input type="text" id="customerSearch" placeholder="電話番号 or 氏名で検索"
+        style="flex:1;padding:9px 12px;border:1px solid #ddd;border-radius:8px;font-size:14px"
+        oninput="onCustomerSearch(this.value)">
+      <button class="btn btn-primary" onclick="loadCustomers()">全件表示</button>
+    </div>
+    <div id="customerList"><div class="empty">検索してください</div></div>
+  </div>
+</div>
+
+<!-- ── 会計モーダル ── -->
+<div class="modal-overlay" id="checkoutModal">
+  <div class="modal">
+    <h2>会計</h2>
+    <div class="modal-row">
+      <span class="modal-label">お客様</span>
+      <span class="modal-value" id="mo-name">—</span>
+    </div>
+    <div class="modal-row">
+      <span class="modal-label">メニュー</span>
+      <span class="modal-value" id="mo-menu">—</span>
+    </div>
+    <hr class="modal-divider">
+    <div class="modal-row">
+      <span class="modal-label">通常価格</span>
+      <span class="modal-value" id="mo-price">—</span>
+    </div>
+    <div class="discount-row">
+      <label>割引 (¥)</label>
+      <input type="number" id="mo-discount" value="0" min="0" step="100" oninput="updateFinal()">
+    </div>
+    <div class="modal-row">
+      <span class="modal-label">お会計金額</span>
+      <span class="modal-price" id="mo-final">—</span>
+    </div>
+    <hr class="modal-divider">
+    <div class="payment-opts">
+      <div class="payment-opt" id="pay-cash" onclick="selectPayment('cash')">
+        <span class="payment-icon">💴</span>現金
+      </div>
+      <div class="payment-opt" id="pay-card" onclick="selectPayment('card')">
+        <span class="payment-icon">💳</span>カード
+      </div>
+      <div class="payment-opt" id="pay-qr" onclick="selectPayment('qr')">
+        <span class="payment-icon">📱</span>QR払い
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal()">キャンセル</button>
+      <button class="btn btn-green" id="confirmCheckoutBtn" onclick="confirmCheckout()" disabled>会計確定</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── レシートモーダル ── -->
+<div class="modal-overlay" id="receiptModal">
+  <div class="modal" style="text-align:center;max-width:360px">
+    <div style="font-size:28px;margin-bottom:4px">✅</div>
+    <h2 style="margin-bottom:16px">会計完了</h2>
+    <!-- レシートプレビュー -->
+    <div id="receiptBody" style="
+      text-align:left;background:#fafafa;border:1px solid #e0e0e0;border-radius:8px;
+      padding:16px 20px;margin-bottom:16px;font-size:12px;font-family:monospace;
+      line-height:1.9;max-height:60vh;overflow-y:auto
+    "></div>
+    <div style="display:flex;gap:10px">
+      <button class="btn btn-outline" onclick="printReceipt()" style="flex:1">🖨️ 印刷 / PDF保存</button>
+      <button class="btn btn-primary" onclick="closeReceipt()" style="flex:1">閉じる</button>
+    </div>
+    <div style="font-size:11px;color:#aaa;margin-top:8px">印刷ダイアログで「PDFに保存」を選ぶとPDF化できます</div>
+  </div>
+</div>
+
+<!-- ── 顧客履歴モーダル ── -->
+<div class="modal-overlay" id="historyModal">
+  <div class="modal">
+    <h2>📋 来店履歴</h2>
+    <div id="historyBody" style="max-height:300px;overflow-y:auto;margin:16px 0"></div>
+    <button class="btn btn-outline" onclick="document.getElementById('historyModal').classList.remove('open')" style="width:100%">閉じる</button>
+  </div>
+</div>
+
+<!-- ── トースト ── -->
+<div class="toast" id="toast"></div>
+
+<!-- ── 印刷専用レシート（@media print で表示） ── -->
+<div id="receipt-print"></div>
+
+<script>
+// id → {name, price, category}
+const MENUS_MASTER = {
+  h1: { name: 'リタッチカラー',           price: 4400, category: 'ヘアカラー' },
+  h2: { name: 'フルカラー',               price: 6600, category: 'ヘアカラー' },
+  h3: { name: 'カラー＋トリートメント',    price: 8800, category: 'ヘアカラー' },
+  h4: { name: 'ハイライト',               price: 7700, category: 'ヘアカラー' },
+  w1: { name: 'セルフホワイトニング 30分', price: 3300, category: 'ホワイトニング' },
+  w2: { name: 'セルフホワイトニング 60分', price: 5500, category: 'ホワイトニング' },
+  l1: { name: 'まつ毛パーマ（ベーシック）', price: 5500, category: 'まつ毛パーマ' },
+  l2: { name: 'まつ毛パーマ＋リフトアップ', price: 7700, category: 'まつ毛パーマ' },
+  s1: { name: 'ドライヘッドスパ 30分',    price: 3300, category: 'ヘッドスパ' },
+  s2: { name: 'ドライヘッドスパ 60分',    price: 5500, category: 'ヘッドスパ' },
+  s3: { name: 'ドライヘッドスパ 90分',    price: 7700, category: 'ヘッドスパ' },
+};
+// menuName 文字列から逆引き（予約データは menuId を持たないため）
+const MENU_BY_NAME = Object.fromEntries(Object.values(MENUS_MASTER).map(m => [m.name, m]));
+// staffCategory（hair/white/lash/spa）→ カテゴリ名
+const CATEGORY_MAP = { hair: 'ヘアカラー', white: 'ホワイトニング', lash: 'まつ毛パーマ', spa: 'ヘッドスパ' };
+
+let token = '';
+let currentVisitId = null;
+let currentPayment = null;
+let currentPrice   = 0;
+
+// ── ログイン ────────────────────────────────────────────────
+function doLogin() {
+  const pw = document.getElementById('loginPw').value.trim();
+  if (!pw) return;
+  token = pw;
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('mainScreen').style.display  = 'block';
+  const today = new Date();
+  document.getElementById('todayLabel').textContent =
+    `${today.getFullYear()}/${today.getMonth()+1}/${today.getDate()}（${['日','月','火','水','木','金','土'][today.getDay()]}）`;
+  loadTodayReservations();
+}
+
+function doLogout() {
+  token = '';
+  document.getElementById('mainScreen').style.display  = 'none';
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.getElementById('loginPw').value = '';
+}
+
+document.getElementById('loginPw').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doLogin();
+});
+
+// ── タブ切り替え ─────────────────────────────────────────────
+function switchTab(name) {
+  ['today','checkin','waiting','customers'].forEach(t => {
+    document.getElementById(`tab-${t}`).classList.toggle('active', t === name);
+    document.getElementById(`pane-${t}`).style.display = t === name ? 'block' : 'none';
+  });
+  if (name === 'today')   loadTodayReservations();
+  if (name === 'waiting') loadWaiting();
+}
+
+// ── API ヘルパー ─────────────────────────────────────────────
+async function apiFetch(path, opts = {}) {
+  const res = await fetch(path, {
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+    ...opts,
+  });
+  return res.json();
+}
+
+function fmt(price) { return `¥${price.toLocaleString()}`; }
+
+function today() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+// ── 今日の予約一覧 ────────────────────────────────────────────
+async function loadTodayReservations() {
+  const list = document.getElementById('todayList');
+  list.innerHTML = '<div class="empty">読み込み中...</div>';
+  try {
+    const data = await apiFetch('/api/reservations');
+    const t    = today();
+    const items = (data.reservations || []).filter(r => r.data?.date === t);
+    if (!items.length) { list.innerHTML = '<div class="empty">今日の予約はありません</div>'; return; }
+    list.innerHTML = items.map(r => {
+      const d = r.data || {};
+      // 予約データは menuName（文字列）と staffCategory を持つ。menuId は存在しない
+      const menuInfo  = MENU_BY_NAME[d.menuName] || null;
+      const price     = menuInfo?.price || 0;
+      const category  = menuInfo?.category || CATEGORY_MAP[d.staffCategory] || '不明';
+      const priceStr  = price > 0 ? fmt(price) : '要確認';
+      const badge = r.status === 'completed'
+        ? '<span class="badge badge-completed">SB登録済</span>'
+        : '<span class="badge badge-pending">未登録</span>';
+      // onclick に渡すデータをエンコード（名前の特殊文字対策）
+      const dataAttr  = encodeURIComponent(JSON.stringify({ reservationId: r.id, name: d.name, phone: d.phone||'', menuName: d.menuName||'', price, category, staff: d.staffCategory||'', time: d.time||'' }));
+      return `
+        <div class="card">
+          <div class="card-header">
+            <span class="card-name">${d.name || '—'}</span>
+            <div style="display:flex;gap:8px;align-items:center">
+              <span class="card-time">${d.time || '—'}</span>
+              ${badge}
+            </div>
+          </div>
+          <div class="card-meta">
+            <span>📋 ${d.menuName || '—'}</span>
+            <span>💰 ${priceStr}</span>
+            ${d.phone ? `<span>📞 ${d.phone}</span>` : ''}
+          </div>
+          <div class="card-footer">
+            <button class="btn btn-primary" onclick="checkinFromReservation('${dataAttr}')">来店チェックイン</button>
+          </div>
+        </div>`;
+    }).join('');
+  } catch (e) {
+    list.innerHTML = `<div class="empty">取得失敗: ${e.message}</div>`;
+  }
+}
+
+// 予約からチェックイン（データはJSONエンコードで受け取る）
+async function checkinFromReservation(encoded) {
+  const d   = JSON.parse(decodeURIComponent(encoded));
+  const res = await apiFetch('/api/checkin', {
+    method: 'POST',
+    body: JSON.stringify({
+      reservationId: d.reservationId,
+      customerName: d.name,
+      phone:    d.phone,
+      menuName: d.menuName,
+      price:    d.price,
+      category: d.category,
+      staff:    d.staff,
+      date:     today(),
+      time:     d.time,
+    }),
+  });
+  if (res.ok) {
+    showToast(`✅ ${d.name} さんのチェックイン完了`);
+    loadTodayReservations();
+    setTimeout(() => { switchTab('waiting'); }, 800);
+  } else {
+    showToast(`❌ エラー: ${res.error}`);
+  }
+}
+
+// ── 手動チェックイン ──────────────────────────────────────────
+async function doManualCheckin() {
+  const name  = document.getElementById('ci-name').value.trim();
+  const phone = document.getElementById('ci-phone').value.trim();
+  const menuId = document.getElementById('ci-menu').value;
+  const staff  = document.getElementById('ci-staff').value;
+  if (!name) { showToast('お客様名を入力してください'); return; }
+
+  const now  = new Date();
+  const time = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  const res  = await apiFetch('/api/checkin', {
+    method: 'POST',
+    body: JSON.stringify({ customerName: name, phone, menuId, staff, date: today(), time }),
+  });
+  if (res.ok) {
+    showToast(`✅ ${name} さんのチェックイン完了`);
+    document.getElementById('ci-name').value  = '';
+    document.getElementById('ci-phone').value = '';
+    document.getElementById('ci-menu').value  = '';
+    setTimeout(() => { switchTab('waiting'); }, 800);
+  } else {
+    showToast(`❌ エラー: ${res.error}`);
+  }
+}
+
+// ── 会計待ち一覧 ──────────────────────────────────────────────
+async function loadWaiting() {
+  const list = document.getElementById('waitingList');
+  list.innerHTML = '<div class="empty">読み込み中...</div>';
+  try {
+    const data = await apiFetch(`/api/sales?from=${today()}&to=${today()}`);
+
+    // 会計待ち
+    const items = data.checkedIn || [];
+    if (!items.length) { list.innerHTML = '<div class="empty">会計待ちはいません</div>'; }
+    else {
+      list.innerHTML = items.map(v => `
+        <div class="card">
+          <div class="card-header">
+            <span class="card-name">${v.customer?.name || '—'}</span>
+            <span class="badge badge-checkedin">会計待ち</span>
+          </div>
+          <div class="card-meta">
+            <span>📋 ${v.menuName || '—'}</span>
+            <span class="card-price">${fmt(v.price || 0)}</span>
+          </div>
+          <div class="card-meta">
+            <span>🕐 来店 ${v.time || '—'}</span>
+            ${v.customer?.phone ? `<span>📞 ${v.customer.phone}</span>` : ''}
+          </div>
+          <div class="card-footer">
+            <button class="btn btn-green" onclick="openCheckout('${v.id}', '${(v.customer?.name||'').replace(/'/g,'\\'')}', '${v.menuName||''}', ${v.price||0})">
+              💰 会計する
+            </button>
+            <button class="btn btn-outline" onclick="showHistory('${v.customer?.phone||''}')">📋 履歴</button>
+          </div>
+        </div>`).join('');
+    }
+
+    // 本日の会計完了
+    const completed = (data.records || []).filter(r => r.date === today());
+    const cList = document.getElementById('completedList');
+    document.getElementById('completedCount').textContent = completed.length;
+    if (!completed.length) {
+      cList.innerHTML = '<div class="empty" style="font-size:12px;padding:10px 0">本日の会計完了なし</div>';
+    } else {
+      const payIcon = { cash: '💴', card: '💳', qr: '📱' };
+      cList.innerHTML = completed.map(s => `
+        <div class="card" style="opacity:.85">
+          <div class="card-header">
+            <span class="card-name" style="font-size:14px">${s.customer || '—'}</span>
+            <span class="badge" style="background:#e8f5e9;color:#388e3c">完了</span>
+          </div>
+          <div class="card-meta">
+            <span>📋 ${s.menuName || s.category || '—'}</span>
+            <span class="card-price">¥${(s.finalPrice||0).toLocaleString()}</span>
+          </div>
+          <div class="card-meta" style="font-size:12px;color:#aaa">
+            <span>${payIcon[s.payment] || ''} ${({cash:'現金',card:'カード',qr:'QR払い'})[s.payment]||''}</span>
+            <span>🕐 ${s.time || '—'}</span>
+          </div>
+          <div class="card-footer">
+            <button class="btn btn-outline" style="font-size:12px" onclick="window.open('/api/receipt?saleId=${s.visitId}&token='+token,'_blank')">
+              🖨️ 領収書再印刷
+            </button>
+          </div>
+        </div>`).join('');
+    }
+
+  } catch (e) {
+    list.innerHTML = `<div class="empty">取得失敗: ${e.message}</div>`;
+  }
+}
+
+// ── 会計モーダル ──────────────────────────────────────────────
+function openCheckout(visitId, name, menu, price) {
+  currentVisitId = visitId;
+  currentPayment = null;
+  currentPrice   = price;
+  document.getElementById('mo-name').textContent    = name;
+  document.getElementById('mo-menu').textContent    = menu;
+  document.getElementById('mo-price').textContent   = fmt(price);
+  document.getElementById('mo-discount').value      = '0';
+  document.getElementById('mo-final').textContent   = fmt(price);
+  document.getElementById('confirmCheckoutBtn').disabled = true;
+  ['cash','card','qr'].forEach(p => document.getElementById(`pay-${p}`).classList.remove('selected'));
+  document.getElementById('checkoutModal').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('checkoutModal').classList.remove('open');
+  currentVisitId = null;
+  currentPayment = null;
+}
+
+function selectPayment(method) {
+  currentPayment = method;
+  ['cash','card','qr'].forEach(p =>
+    document.getElementById(`pay-${p}`).classList.toggle('selected', p === method)
+  );
+  document.getElementById('confirmCheckoutBtn').disabled = false;
+}
+
+function updateFinal() {
+  const discount = parseInt(document.getElementById('mo-discount').value) || 0;
+  const final = Math.max(0, currentPrice - discount);
+  document.getElementById('mo-final').textContent = fmt(final);
+}
+
+async function confirmCheckout() {
+  if (!currentVisitId || !currentPayment) return;
+  const discount   = parseInt(document.getElementById('mo-discount').value) || 0;
+  const amount     = Math.max(0, currentPrice - discount);
+  const methodLabel = { cash: '現金', card: 'カード', qr: 'QR払い' }[currentPayment];
+
+  const res = await apiFetch('/api/checkout', {
+    method: 'POST',
+    body: JSON.stringify({ visitId: currentVisitId, payment: currentPayment, amount, discount }),
+  });
+
+  if (res.ok) {
+    closeModal();
+    showReceipt(res.sale, amount, discount, methodLabel);
+    loadWaiting();
+  } else {
+    showToast(`❌ エラー: ${res.error}`);
+  }
+}
+
+// ── レシート ─────────────────────────────────────────────────
+let _lastReceiptHTML = '';
+
+function buildReceiptHTML(sale, amount, discount, methodLabel) {
+  const now = new Date();
+  const dateStr = `${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日`;
+  const timeStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  // 受付番号: 日付6桁 + visitId末尾4文字
+  const receiptNo = `${now.getFullYear().toString().slice(2)}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}-${(sale?.id || '0000').slice(-4).toUpperCase()}`;
+  const originalPrice = sale?.price || amount;
+  const discountLine = discount > 0
+    ? `<tr><td>通常価格</td><td style="text-align:right">${fmt(originalPrice)}</td></tr>
+       <tr><td>割引</td><td style="text-align:right;color:#c00">▲ ${fmt(discount)}</td></tr>`
+    : '';
+
+  return `
+    <div style="text-align:center;font-weight:700;font-size:15px;letter-spacing:.05em">MONTH COLOR</div>
+    <div style="text-align:center;font-size:10px;color:#666;margin-top:2px;line-height:1.6">
+      東京都江東区東陽4-1-2 大朋ビル4F<br>Tel: 03-6820-5623
+    </div>
+    <div style="border-top:1px dashed #bbb;margin:10px 0"></div>
+    <table style="width:100%;font-size:12px;border-collapse:collapse">
+      <tr><td style="color:#888">受付No.</td><td style="text-align:right">${receiptNo}</td></tr>
+      <tr><td style="color:#888">日付</td><td style="text-align:right">${dateStr} ${timeStr}</td></tr>
+      <tr><td style="color:#888">お客様</td><td style="text-align:right">${sale?.customer || '—'}</td></tr>
+    </table>
+    <div style="border-top:1px dashed #bbb;margin:10px 0"></div>
+    <table style="width:100%;font-size:12px;border-collapse:collapse">
+      <tr><td>${sale?.menuName || '—'}</td><td style="text-align:right">${fmt(originalPrice)}</td></tr>
+      ${discountLine}
+    </table>
+    <div style="border-top:1px solid #000;margin:10px 0"></div>
+    <table style="width:100%;font-size:14px;font-weight:700;border-collapse:collapse">
+      <tr><td>合計（税込）</td><td style="text-align:right;color:#c00">${fmt(amount)}</td></tr>
+    </table>
+    <div style="font-size:12px;margin-top:6px">お支払方法: ${methodLabel}</div>
+    <div style="border-top:1px dashed #bbb;margin:10px 0"></div>
+    <div style="text-align:center;font-size:10px;color:#888;line-height:1.8">
+      領収書<br>
+      上記正に領収いたしました<br>
+      MONTH COLOR 東陽町
+    </div>
+    <div style="border:1px solid #999;border-radius:50%;width:50px;height:50px;
+      margin:10px auto;display:flex;align-items:center;justify-content:center;
+      font-size:9px;text-align:center;color:#555;line-height:1.3">
+      MONTH<br>COLOR<br>印
+    </div>
+    <div style="text-align:center;font-size:11px;color:#888;margin-top:8px">
+      ご来店ありがとうございました
+    </div>
+  `;
+}
+
+function showReceipt(sale, amount, discount, methodLabel) {
+  _lastReceiptHTML = buildReceiptHTML(sale, amount, discount, methodLabel);
+  document.getElementById('receiptBody').innerHTML = _lastReceiptHTML;
+  document.getElementById('receiptModal').classList.add('open');
+}
+
+function closeReceipt() {
+  document.getElementById('receiptModal').classList.remove('open');
+}
+
+function printReceipt() {
+  // #receipt-print に内容を流し込んで window.print()
+  // @media print でこのDIV以外が非表示になる
+  document.getElementById('receipt-print').innerHTML = `
+    <div class="rcp-shop">MONTH COLOR</div>
+    <div class="rcp-addr">東京都江東区東陽4-1-2 大朋ビル4F<br>Tel: 03-6820-5623</div>
+    ${_lastReceiptHTML}
+  `;
+  window.print();
+}
+
+// ── 顧客履歴 ─────────────────────────────────────────────────
+async function showHistory(phone) {
+  if (!phone) { showToast('電話番号がないため履歴を検索できません'); return; }
+  const el = document.getElementById('historyBody');
+  el.innerHTML = '<div style="text-align:center;color:#aaa;padding:20px">読み込み中...</div>';
+  document.getElementById('historyModal').classList.add('open');
+
+  try {
+    const data = await apiFetch('/api/sales');
+    const history = (data.records || [])
+      .filter(r => r.phone === phone)
+      .sort((a, b) => b.checkoutAt?.localeCompare(a.checkoutAt || '') || 0);
+
+    if (!history.length) {
+      el.innerHTML = '<div style="text-align:center;color:#aaa;padding:20px">来店履歴なし（初来店）</div>';
+      return;
+    }
+    el.innerHTML = history.map(r => `
+      <div style="padding:10px 0;border-top:1px solid #f0f0f0;font-size:13px">
+        <div style="font-weight:600">${r.date} ${r.time}</div>
+        <div style="color:#555">${r.menuName} — ${fmt(r.finalPrice)}</div>
+        <div style="color:#aaa;font-size:11px">${{ cash:'💴 現金', card:'💳 カード', qr:'📱 QR' }[r.payment] || ''}</div>
+      </div>
+    `).join('') + `<div style="text-align:center;margin-top:12px;font-size:12px;color:#888">計 ${history.length} 回来店</div>`;
+  } catch (e) {
+    el.innerHTML = `<div style="color:#c00;padding:20px">取得失敗: ${e.message}</div>`;
+  }
+}
+
+// ── 顧客カルテ ────────────────────────────────────────────────
+let searchTimer = null;
+
+function onCustomerSearch(val) {
+  clearTimeout(searchTimer);
+  if (!val.trim()) return;
+  searchTimer = setTimeout(() => searchCustomers(val.trim()), 400);
+}
+
+async function searchCustomers(query) {
+  const list = document.getElementById('customerList');
+  list.innerHTML = '<div class="empty">検索中...</div>';
+  try {
+    const isPhone = /^\d/.test(query);
+    const param   = isPhone ? `phone=${encodeURIComponent(query)}` : `name=${encodeURIComponent(query)}`;
+    const data    = await apiFetch(`/api/customers?${param}`);
+
+    if (data.customer) {
+      renderCustomerCard(data.customer, list, true);
+    } else {
+      const customers = data.customers || [];
+      if (!customers.length) { list.innerHTML = '<div class="empty">該当する顧客が見つかりません</div>'; return; }
+      list.innerHTML = customers.map(c => customerCardHTML(c)).join('');
+    }
+  } catch (e) {
+    list.innerHTML = `<div class="empty">取得失敗: ${e.message}</div>`;
+  }
+}
+
+async function loadCustomers() {
+  const list = document.getElementById('customerList');
+  document.getElementById('customerSearch').value = '';
+  list.innerHTML = '<div class="empty">読み込み中...</div>';
+  try {
+    const data = await apiFetch('/api/customers');
+    const customers = data.customers || [];
+    if (!customers.length) { list.innerHTML = '<div class="empty">顧客データがありません</div>'; return; }
+    list.innerHTML = customers.map(c => customerCardHTML(c)).join('');
+  } catch (e) {
+    list.innerHTML = `<div class="empty">取得失敗: ${e.message}</div>`;
+  }
+}
+
+function customerCardHTML(c) {
+  const lastDate  = c.lastVisit ? c.lastVisit.replace(/-/g, '/') : '—';
+  const rankColor = c.visitCount >= 10 ? '#e60' : c.visitCount >= 5 ? '#f90' : '#aaa';
+  const rankLabel = c.visitCount >= 10 ? '🏆 VIP' : c.visitCount >= 5 ? '⭐ 常連' : '🔰 新規';
+  return `
+    <div class="customer-card" onclick="openCustomerDetail('${encodeURIComponent(JSON.stringify(c))}')">
+      <div class="customer-header">
+        <div>
+          <div class="customer-name">${c.name}</div>
+          <div class="customer-phone">${c.phone || '電話番号なし'}</div>
+        </div>
+        <span style="color:${rankColor};font-size:12px;font-weight:700">${rankLabel}</span>
+      </div>
+      <div class="customer-stats">
+        <div>来店 <span class="customer-stat-val">${c.visitCount}回</span></div>
+        <div>累計 <span class="customer-stat-val">${fmt(c.totalSpent)}</span></div>
+        <div>客単価 <span class="customer-stat-val">${fmt(c.avgSpent)}</span></div>
+        <div>最終 <span class="customer-stat-val">${lastDate}</span></div>
+      </div>
+      ${c.favoriteMenu ? `<div class="customer-fav">よく利用: ${c.favoriteMenu}</div>` : ''}
+    </div>`;
+}
+
+function renderCustomerCard(c, container, showHistory = false) {
+  container.innerHTML = customerCardHTML(c);
+  if (showHistory && c.history?.length) {
+    const histHTML = c.history.map(h => `
+      <div style="padding:8px 0;border-top:1px solid #f0f0f0;font-size:13px">
+        <span style="font-weight:600">${h.date} ${h.time}</span>
+        <span style="color:#555;margin-left:8px">${h.menuName}</span>
+        <span style="float:right;color:#e60;font-weight:700">${fmt(h.finalPrice)}</span>
+      </div>`).join('');
+    container.innerHTML += `
+      <div class="card" style="margin-top:0;border-radius:0 0 10px 10px">
+        <div style="font-size:12px;color:#aaa;margin-bottom:8px">来店履歴</div>
+        ${histHTML}
+      </div>`;
+  }
+}
+
+// 顧客詳細モーダルを流用して表示
+function openCustomerDetail(encoded) {
+  const c  = JSON.parse(decodeURIComponent(encoded));
+  const el = document.getElementById('historyBody');
+  const methodLabel = { cash: '💴 現金', card: '💳 カード', qr: '📱 QR払い' };
+  el.innerHTML = `
+    <div style="margin-bottom:12px">
+      <div style="font-size:15px;font-weight:700">${c.name}</div>
+      <div style="font-size:12px;color:#888">${c.phone || '電話番号なし'}</div>
+    </div>
+    <div style="display:flex;gap:16px;font-size:13px;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid #eee">
+      <div>来店 <strong>${c.visitCount}回</strong></div>
+      <div>累計 <strong>${fmt(c.totalSpent)}</strong></div>
+      <div>客単価 <strong>${fmt(c.avgSpent)}</strong></div>
+    </div>
+    ${c.history?.map(h => `
+      <div style="padding:8px 0;border-top:1px solid #f0f0f0;font-size:13px">
+        <div style="font-weight:600">${h.date} ${h.time}</div>
+        <div style="color:#555">${h.menuName} — ${fmt(h.finalPrice)}</div>
+        <div style="color:#aaa;font-size:11px">${methodLabel[h.payment] || ''}</div>
+      </div>`).join('') || '<div style="color:#aaa;text-align:center;padding:16px">履歴なし</div>'}
+  `;
+  document.getElementById('historyModal').classList.add('open');
+}
+
+// ── トースト ──────────────────────────────────────────────────
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 3000);
+}
+</script>
+</body>
+</html>

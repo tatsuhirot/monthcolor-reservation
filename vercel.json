@@ -1,0 +1,19 @@
+{
+  "routes": [
+    { "src": "/api/(.*)",  "dest": "/api/$1" },
+    { "src": "/admin",     "dest": "/admin.html" },
+    { "src": "/register",  "dest": "/register.html" },
+    { "src": "/report",    "dest": "/report.html" },
+    { "src": "/",          "dest": "/reservation.html" }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron-remind",
+      "schedule": "0 10 * * *"
+    },
+    {
+      "path": "/api/cron-sync-slots",
+      "schedule": "0 21 * * *"
+    }
+  ]
+}

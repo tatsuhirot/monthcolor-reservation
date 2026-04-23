@@ -5,3 +5,7 @@ preview.js
 calendar_data.json
 emails/
 state/
+.state/
+.env
+
+.vercel

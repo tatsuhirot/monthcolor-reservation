@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MONTH COLOR — 予約管理</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: "Hiragino Sans", Meiryo, sans-serif; background: #f4f4f4; color: #333; font-size: 14px; }
+
+/* ── ログイン画面 ── */
+#loginScreen {
+  display: flex; align-items: center; justify-content: center;
+  min-height: 100vh;
+}
+.login-card {
+  background: #fff; border-radius: 12px; padding: 40px 32px;
+  box-shadow: 0 4px 24px rgba(0,0,0,.1); width: 320px; text-align: center;
+}
+.login-card h1 { font-size: 18px; margin-bottom: 8px; }
+.login-card p  { color: #888; font-size: 12px; margin-bottom: 24px; }
+.login-card input {
+  width: 100%; padding: 10px 14px; border: 1px solid #ddd; border-radius: 8px;
+  font-size: 14px; margin-bottom: 16px;
+}
+.login-card button {
+  width: 100%; padding: 12px; background: #333; color: #fff;
+  border: none; border-radius: 8px; font-size: 15px; cursor: pointer;
+}
+.login-card button:hover { background: #555; }
+.error-msg { color: #c00; font-size: 12px; margin-top: 8px; }
+
+/* ── メイン ── */
+#mainScreen { display: none; }
+.header {
+  background: #fff; border-bottom: 1px solid #e0e0e0;
+  padding: 14px 20px; display: flex; align-items: center; justify-content: space-between;
+}
+.header h1 { font-size: 16px; }
+.header button {
+  background: none; border: 1px solid #ddd; border-radius: 6px;
+  padding: 6px 12px; font-size: 12px; cursor: pointer; color: #666;
+}
+.header button:hover { background: #f0f0f0; }
+
+.container { max-width: 900px; margin: 0 auto; padding: 20px; }
+
+/* ── フィルター ── */
+.filter-bar {
+  display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap;
+}
+.filter-btn {
+  padding: 6px 14px; border-radius: 20px; border: 1px solid #ddd;
+  background: #fff; cursor: pointer; font-size: 13px; color: #555;
+}
+.filter-btn.active { background: #333; color: #fff; border-color: #333; }
+
+/* ── カード一覧 ── */
+.card-list { display: flex; flex-direction: column; gap: 12px; }
+.card {
+  background: #fff; border-radius: 10px; padding: 16px 20px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.06);
+  border-left: 4px solid #ddd;
+}
+.card.pending   { border-left-color: #f5a623; }
+.card.processing{ border-left-color: #4a90e2; }
+.card.completed { border-left-color: #7ed321; }
+.card.failed    { border-left-color: #d0021b; }
+.card.cancelled { border-left-color: #9b9b9b; }
+.card.cancel_requested { border-left-color: #bd10e0; }
+.card.update_requested { border-left-color: #4a90e2; }
+
+.card-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.card-title  { font-size: 15px; font-weight: 700; }
+.card-status {
+  font-size: 11px; padding: 3px 8px; border-radius: 4px;
+  background: #f0f0f0; color: #555; white-space: nowrap;
+}
+.card-status.pending    { background: #fff3cd; color: #856404; }
+.card-status.processing { background: #cce5ff; color: #004085; }
+.card-status.completed  { background: #d4edda; color: #155724; }
+.card-status.failed     { background: #f8d7da; color: #721c24; }
+.card-status.cancelled  { background: #e2e3e5; color: #383d41; }
+.card-status.cancel_requested { background: #e2d4f0; color: #5a2d82; }
+.card-status.update_requested { background: #cce5ff; color: #004085; }
+
+.card-body { margin-top: 10px; display: grid; grid-template-columns: 1fr 1fr; gap: 4px 20px; }
+.card-body span { font-size: 13px; color: #555; }
+.card-body span strong { color: #222; }
+.card-error { margin-top: 8px; font-size: 12px; color: #c00; background: #fff0f0; padding: 6px 10px; border-radius: 6px; }
+
+.card-actions { margin-top: 14px; display: flex; gap: 8px; flex-wrap: wrap; }
+.btn { padding: 7px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 13px; }
+.btn-cancel { background: #fff0f0; color: #c00; border: 1px solid #ffc0c0; }
+.btn-cancel:hover { background: #ffd5d5; }
+.btn-edit   { background: #f0f4ff; color: #2c5cc5; border: 1px solid #c0d0ff; }
+.btn-edit:hover { background: #dce8ff; }
+
+/* ── 変更モーダル ── */
+.modal-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,.4); z-index: 100;
+  align-items: center; justify-content: center;
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: #fff; border-radius: 12px; padding: 28px;
+  width: 90%; max-width: 480px; box-shadow: 0 8px 40px rgba(0,0,0,.2);
+}
+.modal h2 { font-size: 16px; margin-bottom: 20px; }
+.form-row { margin-bottom: 14px; }
+.form-row label { display: block; font-size: 12px; color: #888; margin-bottom: 4px; }
+.form-row input, .form-row select {
+  width: 100%; padding: 9px 12px; border: 1px solid #ddd; border-radius: 7px; font-size: 14px;
+}
+.modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+.btn-primary { background: #333; color: #fff; padding: 9px 20px; border: none; border-radius: 7px; cursor: pointer; font-size: 14px; }
+.btn-primary:hover { background: #555; }
+.btn-ghost   { background: none; color: #888; padding: 9px 16px; border: 1px solid #ddd; border-radius: 7px; cursor: pointer; font-size: 14px; }
+
+.empty-state { text-align: center; padding: 60px 20px; color: #aaa; font-size: 15px; }
+.loading     { text-align: center; padding: 60px 20px; color: #aaa; }
+
+/* ── キャンセル確認モーダル ── */
+.confirm-modal {
+  background: #fff; border-radius: 12px; padding: 28px;
+  width: 90%; max-width: 420px; box-shadow: 0 8px 40px rgba(0,0,0,.2);
+}
+.confirm-modal__icon {
+  width: 52px; height: 52px; border-radius: 50%;
+  background: #fff0f0; display: flex; align-items: center;
+  justify-content: center; font-size: 22px; margin: 0 auto 16px;
+}
+.confirm-modal h2 { font-size: 16px; text-align: center; margin-bottom: 6px; }
+.confirm-modal__sub { font-size: 12px; color: #888; text-align: center; margin-bottom: 20px; }
+.confirm-modal__detail {
+  background: #f8f8f8; border-radius: 8px; padding: 14px 16px;
+  margin-bottom: 20px;
+}
+.confirm-modal__detail dl {
+  display: grid; grid-template-columns: auto 1fr; gap: 6px 12px;
+}
+.confirm-modal__detail dt { font-size: 12px; color: #888; white-space: nowrap; }
+.confirm-modal__detail dd { font-size: 13px; color: #222; font-weight: 600; }
+.confirm-modal__warn {
+  font-size: 12px; color: #c00; background: #fff0f0;
+  border-radius: 6px; padding: 8px 12px; margin-bottom: 20px;
+}
+.confirm-modal__actions { display: flex; gap: 10px; }
+.confirm-modal__actions .btn-ghost    { flex: 1; }
+.confirm-modal__actions .btn-danger   { flex: 1; background: #c00; color: #fff; padding: 10px; border: none; border-radius: 7px; cursor: pointer; font-size: 14px; font-weight: 600; }
+.confirm-modal__actions .btn-danger:hover { background: #a00; }
+
+/* ── 新規予約モーダル ── */
+.btn-new { background: #333; color: #fff; border: none; border-radius: 6px; padding: 7px 14px; font-size: 13px; cursor: pointer; }
+.btn-new:hover { background: #555; }
+.header-actions { display: flex; gap: 8px; align-items: center; }
+.new-modal { max-height: 80vh; overflow-y: auto; }
+.slot-grid { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 4px; }
+.slot-btn { padding: 7px 12px; border: 1px solid #ddd; border-radius: 6px; cursor: pointer; font-size: 13px; background: #fff; transition: background .15s; }
+.slot-btn:hover { background: #f0f4ff; border-color: #c0d0ff; }
+.slot-btn.selected { background: #333; color: #fff; border-color: #333; }
+
+/* ── トースト通知 ── */
+#toast {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px);
+  background: #222; color: #fff; padding: 12px 24px; border-radius: 8px;
+  font-size: 14px; z-index: 200; transition: transform .3s ease, opacity .3s ease;
+  opacity: 0; pointer-events: none; white-space: nowrap;
+  box-shadow: 0 4px 20px rgba(0,0,0,.25);
+}
+#toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+#toast.error { background: #c00; }
+</style>
+</head>
+<body>
+
+<!-- ログイン画面 -->
+<div id="loginScreen">
+  <div class="login-card">
+    <h1>MONTH COLOR</h1>
+    <p>予約管理システム</p>
+    <input type="password" id="passwordInput" placeholder="パスワードを入力" onkeydown="if(event.key==='Enter')login()">
+    <button onclick="login()">ログイン</button>
+    <div class="error-msg" id="loginError"></div>
+  </div>
+</div>
+
+<!-- メイン画面 -->
+<div id="mainScreen">
+  <div class="header">
+    <h1>📋 予約管理</h1>
+    <div class="header-actions">
+      <button class="btn-new" onclick="openNewModal()">＋ 新規予約</button>
+      <button id="syncBtn" onclick="syncSlots()">🔄 枠同期</button>
+      <span id="syncTime" style="font-size:11px;color:#aaa;"></span>
+      <a href="/register" style="text-decoration:none"><button>🧾 会計</button></a>
+      <a href="/report"   style="text-decoration:none"><button>📊 レポート</button></a>
+      <button onclick="logout()">ログアウト</button>
+    </div>
+  </div>
+  <div class="container">
+    <div class="filter-bar">
+      <button class="filter-btn active" onclick="setFilter('all', this)">すべて</button>
+      <button class="filter-btn" onclick="setFilter('pending', this)">未処理</button>
+      <button class="filter-btn" onclick="setFilter('completed', this)">登録済み</button>
+      <button class="filter-btn" onclick="setFilter('failed', this)">失敗</button>
+      <button class="filter-btn" onclick="setFilter('cancelled', this)">キャンセル済み</button>
+    </div>
+    <div class="card-list" id="cardList">
+      <div class="loading">読み込み中...</div>
+    </div>
+  </div>
+</div>
+
+<!-- キャンセル確認モーダル -->
+<div class="modal-overlay" id="cancelModal">
+  <div class="confirm-modal">
+    <div class="confirm-modal__icon">🚫</div>
+    <h2>予約をキャンセルしますか？</h2>
+    <p class="confirm-modal__sub">この操作は取り消せません</p>
+    <div class="confirm-modal__detail">
+      <dl>
+        <dt>日時</dt><dd id="cancelDetailDate">—</dd>
+        <dt>お名前</dt><dd id="cancelDetailName">—</dd>
+        <dt>メニュー</dt><dd id="cancelDetailMenu">—</dd>
+        <dt>電話</dt><dd id="cancelDetailPhone">—</dd>
+      </dl>
+    </div>
+    <div class="confirm-modal__warn" id="cancelWarn" style="display:none">
+      ⚠️ SalonBoardに登録済みの予約です。キャンセルするとSalonBoardにも自動でキャンセル処理が入ります。
+    </div>
+    <div class="confirm-modal__actions">
+      <button class="btn-ghost" onclick="closeCancelModal()">戻る</button>
+      <button class="btn-danger" id="cancelConfirmBtn" onclick="executeCancelConfirmed()">キャンセルする</button>
+    </div>
+  </div>
+</div>
+
+<!-- 変更モーダル -->
+<div class="modal-overlay" id="editModal">
+  <div class="modal">
+    <h2>✏️ 予約変更</h2>
+    <input type="hidden" id="editId">
+    <div class="form-row">
+      <label>日付</label>
+      <input type="date" id="editDate">
+    </div>
+    <div class="form-row">
+      <label>時間</label>
+      <input type="time" id="editTime">
+    </div>
+    <div class="form-row">
+      <label>お名前</label>
+      <input type="text" id="editName">
+    </div>
+    <div class="form-row">
+      <label>メニュー</label>
+      <input type="text" id="editMenu" placeholder="例: リタッチカラー">
+    </div>
+    <div class="form-row">
+      <label>備考</label>
+      <input type="text" id="editMemo">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeEdit()">キャンセル</button>
+      <button class="btn-primary" onclick="submitEdit()">変更を保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 新規予約登録モーダル -->
+<div class="modal-overlay" id="newModal">
+  <div class="modal new-modal">
+    <h2>＋ 新規予約登録</h2>
+    <div class="form-row">
+      <label>日付 <span style="color:#c00">*</span></label>
+      <input type="date" id="newDate" onchange="onNewDateChange()">
+    </div>
+    <div id="newTimeRow" style="display:none">
+      <div class="form-row">
+        <label>時間スロット <span style="color:#c00">*</span></label>
+        <div class="slot-grid" id="newSlotGrid"></div>
+        <input type="hidden" id="newTime">
+      </div>
+    </div>
+    <div class="form-row">
+      <label>お名前 <span style="color:#c00">*</span></label>
+      <input type="text" id="newName" placeholder="例: 山田 花子">
+    </div>
+    <div class="form-row">
+      <label>電話番号 <span style="color:#c00">*</span></label>
+      <input type="tel" id="newPhone" placeholder="例: 090-1234-5678">
+    </div>
+    <div class="form-row">
+      <label>メニュー</label>
+      <input type="text" id="newMenu" placeholder="例: リタッチカラー">
+    </div>
+    <div class="form-row">
+      <label>メールアドレス <span style="color:#aaa;font-size:11px">任意</span></label>
+      <input type="email" id="newEmail" placeholder="例: example@gmail.com">
+    </div>
+    <div class="form-row">
+      <label>備考 <span style="color:#aaa;font-size:11px">任意</span></label>
+      <input type="text" id="newMemo" placeholder="例: 電話予約">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeNewModal()">キャンセル</button>
+      <button class="btn-primary" id="newSubmitBtn" onclick="submitNew()">予約を登録</button>
+    </div>
+  </div>
+</div>
+
+<!-- トースト -->
+<div id="toast"></div>
+
+<script>
+/* ── 設定 ── */
+let password = '';
+let currentFilter = 'all';
+let reservations  = [];
+let pendingCancelId = null;
+
+const STATUS_LABEL = {
+  pending:          '⏳ 未処理',
+  processing:       '🔄 処理中',
+  completed:        '✅ 登録済み',
+  failed:           '❌ 失敗',
+  cancelled:        '🚫 キャンセル済',
+  cancel_requested: '🟣 キャンセル待ち',
+  update_requested: '🔵 変更待ち',
+};
+
+/* ── トースト ── */
+let toastTimer = null;
+function showToast(msg, isError = false) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.toggle('error', isError);
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+/* ── ログイン ── */
+async function login() {
+  const pw = document.getElementById('passwordInput').value.trim();
+  if (!pw) return;
+
+  const res = await fetch('/api/reservations', {
+    headers: { Authorization: `Bearer ${pw}` },
+  });
+  if (!res.ok) {
+    document.getElementById('loginError').textContent = 'パスワードが違います';
+    return;
+  }
+  password = pw;
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('mainScreen').style.display  = 'block';
+
+  const data = await res.json();
+  reservations = data.reservations || [];
+  renderCards();
+  loadSyncTime();
+}
+
+function logout() {
+  password = '';
+  document.getElementById('loginScreen').style.display = '';
+  document.getElementById('mainScreen').style.display  = 'none';
+  document.getElementById('passwordInput').value = '';
+  document.getElementById('loginError').textContent = '';
+}
+
+/* ── フィルター ── */
+function setFilter(filter, btn) {
+  currentFilter = filter;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderCards();
+}
+
+/* ── カード描画 ── */
+function renderCards() {
+  const list = document.getElementById('cardList');
+  const filtered = reservations.filter(r =>
+    currentFilter === 'all' || r.status === currentFilter
+  );
+
+  if (filtered.length === 0) {
+    list.innerHTML = '<div class="empty-state">該当する予約はありません</div>';
+    return;
+  }
+
+  list.innerHTML = filtered.map(r => {
+    const d = r.data;
+    const statusLabel = STATUS_LABEL[r.status] || r.status;
+    const canCancel = ['pending', 'completed'].includes(r.status);
+    const canEdit   = ['pending', 'completed'].includes(r.status);
+
+    return `
+      <div class="card ${r.status}">
+        <div class="card-header">
+          <div class="card-title">${d.date} ${d.time} — ${d.name} 様</div>
+          <div class="card-status ${r.status}">${statusLabel}</div>
+        </div>
+        <div class="card-body">
+          <span><strong>メニュー</strong>: ${d.menuName || '—'}</span>
+          <span><strong>電話</strong>: ${d.phone || '—'}</span>
+          <span><strong>メール</strong>: ${d.email || '—'}</span>
+          <span><strong>備考</strong>: ${d.memo || '—'}</span>
+          <span style="grid-column:1/-1;font-size:11px;color:#aaa">受付: ${fmtDate(r.createdAt)}</span>
+        </div>
+        ${r.error ? `<div class="card-error">⚠️ ${r.error}</div>` : ''}
+        ${(canCancel || canEdit) ? `
+        <div class="card-actions">
+          ${canEdit   ? `<button class="btn btn-edit"   onclick="openEdit('${r.id}')">✏️ 変更</button>` : ''}
+          ${canCancel ? `<button class="btn btn-cancel" onclick="openCancelModal('${r.id}')">🚫 キャンセル</button>` : ''}
+        </div>` : ''}
+      </div>
+    `;
+  }).join('');
+}
+
+/* ── キャンセル確認モーダル ── */
+function openCancelModal(id) {
+  const r = reservations.find(x => x.id === id);
+  if (!r) return;
+
+  pendingCancelId = id;
+  const d = r.data;
+  document.getElementById('cancelDetailDate').textContent  = `${d.date} ${d.time}`;
+  document.getElementById('cancelDetailName').textContent  = `${d.name} 様`;
+  document.getElementById('cancelDetailMenu').textContent  = d.menuName || '—';
+  document.getElementById('cancelDetailPhone').textContent = d.phone    || '—';
+
+  const warn = document.getElementById('cancelWarn');
+  warn.style.display = r.status === 'completed' ? 'block' : 'none';
+
+  document.getElementById('cancelModal').classList.add('open');
+}
+
+function closeCancelModal() {
+  pendingCancelId = null;
+  document.getElementById('cancelModal').classList.remove('open');
+}
+
+async function executeCancelConfirmed() {
+  if (!pendingCancelId) return;
+  const id = pendingCancelId;
+
+  const btn = document.getElementById('cancelConfirmBtn');
+  btn.disabled = true;
+  btn.textContent = '処理中...';
+
+  try {
+    const res = await fetch('/api/admin-action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${password}` },
+      body: JSON.stringify({ action: 'cancel', id }),
+    });
+    const data = await res.json();
+    if (!res.ok) { showToast(`エラー: ${data.error}`, true); return; }
+
+    closeCancelModal();
+    showToast('✅ キャンセルしました');
+    await reload();
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'キャンセルする';
+  }
+}
+
+/* ── 変更モーダル ── */
+function openEdit(id) {
+  const r = reservations.find(x => x.id === id);
+  if (!r) return;
+  document.getElementById('editId').value    = id;
+  document.getElementById('editDate').value  = r.data.date     || '';
+  document.getElementById('editTime').value  = r.data.time     || '';
+  document.getElementById('editName').value  = r.data.name     || '';
+  document.getElementById('editMenu').value  = r.data.menuName || '';
+  document.getElementById('editMemo').value  = r.data.memo     || '';
+  document.getElementById('editModal').classList.add('open');
+}
+
+function closeEdit() {
+  document.getElementById('editModal').classList.remove('open');
+}
+
+async function submitEdit() {
+  const id = document.getElementById('editId').value;
+  const updateData = {
+    date:     document.getElementById('editDate').value,
+    time:     document.getElementById('editTime').value,
+    name:     document.getElementById('editName').value,
+    menuName: document.getElementById('editMenu').value,
+    memo:     document.getElementById('editMemo').value,
+  };
+
+  const btn = document.querySelector('#editModal .btn-primary');
+  btn.disabled = true;
+  btn.textContent = '保存中...';
+
+  try {
+    const res = await fetch('/api/admin-action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${password}` },
+      body: JSON.stringify({ action: 'update', id, updateData }),
+    });
+    const data = await res.json();
+    if (!res.ok) { showToast(`エラー: ${data.error}`, true); return; }
+
+    closeEdit();
+    showToast('✅ 変更を保存しました');
+    await reload();
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '変更を保存';
+  }
+}
+
+/* ── モーダル外クリックで閉じる ── */
+document.getElementById('cancelModal').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeCancelModal();
+});
+document.getElementById('editModal').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeEdit();
+});
+
+/* ── リロード ── */
+async function reload() {
+  const res = await fetch('/api/reservations', {
+    headers: { Authorization: `Bearer ${password}` },
+  });
+  const data = await res.json();
+  reservations = data.reservations || [];
+  renderCards();
+}
+
+/* ── 新規予約モーダル ── */
+let slotsData = null;
+
+// 標準スロット (9:00〜19:00 30分刻み)
+const DEFAULT_SLOTS = (() => {
+  const s = [];
+  for (let h = 9; h <= 19; h++) {
+    s.push(`${String(h).padStart(2,'0')}:00`);
+    if (h < 19) s.push(`${String(h).padStart(2,'0')}:30`);
+  }
+  return s;
+})();
+
+async function openNewModal() {
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('newDate').min   = today;
+  document.getElementById('newDate').value = '';
+  document.getElementById('newName').value  = '';
+  document.getElementById('newPhone').value = '';
+  document.getElementById('newMenu').value  = '';
+  document.getElementById('newEmail').value = '';
+  document.getElementById('newMemo').value  = '';
+  document.getElementById('newTime').value  = '';
+  document.getElementById('newTimeRow').style.display = 'none';
+  document.getElementById('newModal').classList.add('open');
+
+  try {
+    const res = await fetch('/api/slots');
+    const d   = await res.json();
+    slotsData = d.slots;
+  } catch (e) {
+    slotsData = null;
+  }
+}
+
+function closeNewModal() {
+  document.getElementById('newModal').classList.remove('open');
+}
+
+function onNewDateChange() {
+  const date = document.getElementById('newDate').value;
+  document.getElementById('newTime').value = '';
+  if (!date) { document.getElementById('newTimeRow').style.display = 'none'; return; }
+
+  const available = slotsData ? (slotsData[date] ?? DEFAULT_SLOTS) : DEFAULT_SLOTS;
+  const grid = document.getElementById('newSlotGrid');
+
+  if (available.length === 0) {
+    grid.innerHTML = '<span style="color:#888;font-size:13px">この日は空きスロットがありません</span>';
+  } else {
+    grid.innerHTML = available.map(t =>
+      `<button type="button" class="slot-btn" onclick="selectNewSlot('${t}',this)">${t}</button>`
+    ).join('');
+  }
+  document.getElementById('newTimeRow').style.display = '';
+}
+
+function selectNewSlot(time, el) {
+  document.querySelectorAll('#newSlotGrid .slot-btn').forEach(b => b.classList.remove('selected'));
+  el.classList.add('selected');
+  document.getElementById('newTime').value = time;
+}
+
+async function submitNew() {
+  const date  = document.getElementById('newDate').value;
+  const time  = document.getElementById('newTime').value;
+  const name  = document.getElementById('newName').value.trim();
+  const phone = document.getElementById('newPhone').value.trim();
+  const menu  = document.getElementById('newMenu').value.trim();
+  const email = document.getElementById('newEmail').value.trim();
+  const memo  = document.getElementById('newMemo').value.trim();
+
+  if (!date)  { showToast('日付を選択してください', true);         return; }
+  if (!time)  { showToast('時間スロットを選択してください', true); return; }
+  if (!name)  { showToast('お名前を入力してください', true);       return; }
+  if (!phone) { showToast('電話番号を入力してください', true);     return; }
+
+  const btn = document.getElementById('newSubmitBtn');
+  btn.disabled    = true;
+  btn.textContent = '登録中...';
+
+  try {
+    const res = await fetch('/api/reserve', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ date, time, name, phone, menuName: menu, email, memo, source: 'staff' }),
+    });
+    const data = await res.json();
+    if (!res.ok) { showToast(`エラー: ${data.error || '登録失敗'}`, true); return; }
+
+    closeNewModal();
+    showToast('✅ 予約を登録しました');
+    await reload();
+  } catch (e) {
+    showToast('通信エラーが発生しました', true);
+  } finally {
+    btn.disabled    = false;
+    btn.textContent = '予約を登録';
+  }
+}
+
+document.getElementById('newModal').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeNewModal();
+});
+
+/* ── スロット最終更新時刻 ── */
+async function loadSyncTime() {
+  try {
+    const r = await fetch('/api/slots');
+    if (!r.ok) return;
+    const d = await r.json();
+    if (d.updatedAt) {
+      const t = new Date(d.updatedAt);
+      document.getElementById('syncTime').textContent =
+        `更新: ${t.toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`;
+    }
+  } catch { /* silent */ }
+}
+
+/* ── スロット手動同期 ── */
+async function syncSlots() {
+  const btn = document.getElementById('syncBtn');
+  btn.disabled = true;
+  btn.textContent = '同期中…';
+  try {
+    const res = await fetch('/api/cron-sync-slots', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${password}` },
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      showToast(`同期失敗: ${data.error || res.status}`, true);
+    } else {
+      const s = data.stats || {};
+      showToast(`✅ 同期完了 ${s.days ?? '?'}日 / ${s.slots ?? '?'}枠`);
+      loadSyncTime();
+    }
+  } catch (e) {
+    showToast('通信エラーが発生しました', true);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🔄 枠同期';
+  }
+}
+
+/* ── ユーティリティ ── */
+function fmtDate(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MONTH COLOR — 売上レポート</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: "Hiragino Sans", Meiryo, sans-serif; background: #f4f4f4; color: #333; font-size: 14px; }
+
+/* ── ログイン ── */
+#loginScreen { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+.login-card {
+  background: #fff; border-radius: 12px; padding: 40px 32px;
+  box-shadow: 0 4px 24px rgba(0,0,0,.1); width: 320px; text-align: center;
+}
+.login-card h1 { font-size: 18px; margin-bottom: 8px; }
+.login-card p  { color: #888; font-size: 12px; margin-bottom: 24px; }
+.login-card input {
+  width: 100%; padding: 10px 14px; border: 1px solid #ddd; border-radius: 8px;
+  font-size: 14px; margin-bottom: 16px;
+}
+.login-card button {
+  width: 100%; padding: 12px; background: #e60; color: #fff;
+  border: none; border-radius: 8px; font-size: 15px; cursor: pointer;
+}
+.login-card button:hover { background: #c50; }
+
+/* ── メイン ── */
+#mainScreen { display: none; }
+.header {
+  background: #fff; border-bottom: 1px solid #e0e0e0;
+  padding: 12px 20px; display: flex; align-items: center; justify-content: space-between;
+}
+.header h1 { font-size: 16px; }
+.header-actions { display: flex; gap: 8px; }
+.header-btn {
+  background: none; border: 1px solid #ddd; border-radius: 6px;
+  padding: 6px 12px; font-size: 12px; cursor: pointer; color: #666;
+  text-decoration: none; display: inline-block;
+}
+
+.container { max-width: 900px; margin: 0 auto; padding: 20px; }
+
+/* ── 期間フィルタ ── */
+.filter-bar {
+  display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+  background: #fff; padding: 14px 16px; border-radius: 10px;
+  margin-bottom: 20px; box-shadow: 0 1px 4px rgba(0,0,0,.08);
+}
+.filter-bar label { font-size: 12px; color: #888; }
+.filter-bar input[type="date"] {
+  padding: 7px 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 13px;
+}
+.filter-btn {
+  padding: 7px 16px; border-radius: 20px; border: 1px solid #ddd;
+  background: #fff; cursor: pointer; font-size: 13px; color: #555;
+}
+.filter-btn:hover, .filter-btn.active { background: #333; color: #fff; border-color: #333; }
+.load-btn {
+  padding: 7px 20px; border-radius: 8px; border: none;
+  background: #e60; color: #fff; cursor: pointer; font-size: 13px; font-weight: 600;
+}
+
+/* ── KPI カード ── */
+.kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+@media (max-width: 600px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+.kpi-card {
+  background: #fff; border-radius: 10px; padding: 16px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.08); text-align: center;
+}
+.kpi-label { font-size: 11px; color: #999; margin-bottom: 6px; }
+.kpi-value { font-size: 24px; font-weight: 700; color: #e60; }
+.kpi-unit  { font-size: 13px; color: #888; }
+
+/* ── グリッド ── */
+.report-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+@media (max-width: 600px) { .report-grid { grid-template-columns: 1fr; } }
+
+.card {
+  background: #fff; border-radius: 10px; padding: 16px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.08);
+}
+.card h2 { font-size: 13px; color: #888; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid #eee; }
+
+/* ── バー ── */
+.bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.bar-label { font-size: 13px; color: #555; width: 130px; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bar-wrap  { flex: 1; background: #f0f0f0; border-radius: 4px; height: 10px; overflow: hidden; }
+.bar-fill  { height: 100%; background: #e60; border-radius: 4px; transition: width .4s; }
+.bar-val   { font-size: 12px; color: #888; white-space: nowrap; }
+
+/* ── 支払方法 ── */
+.payment-row { display: flex; gap: 8px; }
+.payment-block {
+  flex: 1; border-radius: 8px; padding: 12px; text-align: center;
+  background: #f9f9f9;
+}
+.payment-block .icon { font-size: 20px; margin-bottom: 4px; }
+.payment-block .cnt  { font-size: 11px; color: #888; }
+.payment-block .amt  { font-size: 14px; font-weight: 700; color: #333; }
+
+/* ── 日別テーブル ── */
+.table { width: 100%; border-collapse: collapse; }
+.table th { background: #f4f4f4; font-size: 12px; color: #888; text-align: left; padding: 8px 10px; }
+.table td { padding: 8px 10px; border-top: 1px solid #f0f0f0; font-size: 13px; }
+.table tr:hover td { background: #fafafa; }
+.table .num { text-align: right; }
+
+/* ── 取引履歴 ── */
+.record-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 0; border-top: 1px solid #f0f0f0;
+}
+.record-row:first-child { border-top: none; }
+.record-left { flex: 1; }
+.record-name { font-size: 14px; font-weight: 600; }
+.record-meta { font-size: 12px; color: #888; margin-top: 2px; }
+.record-right { display: flex; align-items: center; gap: 12px; }
+.record-amounts { text-align: right; }
+.record-price { font-size: 15px; font-weight: 700; color: #e60; }
+.record-method { font-size: 11px; color: #888; }
+.btn-receipt {
+  font-size: 11px; color: #888; border: 1px solid #ddd;
+  border-radius: 4px; padding: 3px 8px; background: #fff;
+  cursor: pointer; white-space: nowrap; text-decoration: none;
+  display: inline-block;
+}
+.btn-receipt:hover { background: #f4f4f4; color: #333; }
+.empty { text-align: center; color: #aaa; padding: 40px 0; font-size: 14px; }
+.loading { text-align: center; color: #aaa; padding: 40px 0; }
+</style>
+</head>
+<body>
+
+<!-- ── ログイン ── -->
+<div id="loginScreen">
+  <div class="login-card">
+    <h1>MONTH COLOR</h1>
+    <p>売上レポート</p>
+    <input type="password" id="loginPw" placeholder="管理パスワード">
+    <button onclick="doLogin()">ログイン</button>
+  </div>
+</div>
+
+<!-- ── メイン ── -->
+<div id="mainScreen">
+  <div class="header">
+    <h1>📊 売上レポート</h1>
+    <div class="header-actions">
+      <a href="/register" class="header-btn">💰 会計</a>
+      <a href="/admin"    class="header-btn">📋 予約管理</a>
+      <button class="header-btn" onclick="doLogout()">ログアウト</button>
+    </div>
+  </div>
+
+  <div class="container">
+    <!-- 期間フィルタ -->
+    <div class="filter-bar">
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="filter-btn active" id="btn-today"   onclick="setRange('today')">今日</button>
+        <button class="filter-btn"        id="btn-week"    onclick="setRange('week')">今週</button>
+        <button class="filter-btn"        id="btn-month"   onclick="setRange('month')">今月</button>
+        <button class="filter-btn"        id="btn-custom"  onclick="setRange('custom')">カスタム</button>
+      </div>
+      <div id="customRange" style="display:none;gap:6px;align-items:center;display:none;flex-wrap:wrap">
+        <label>From</label>
+        <input type="date" id="fromDate">
+        <label>To</label>
+        <input type="date" id="toDate">
+      </div>
+      <button class="load-btn" onclick="loadReport()">読み込む</button>
+      <button class="load-btn" onclick="exportCSV()" style="background:#555">⬇ CSV</button>
+    </div>
+
+    <!-- KPI -->
+    <div class="kpi-grid" id="kpiGrid">
+      <div class="kpi-card"><div class="kpi-label">売上合計</div><div class="kpi-value loading">—</div></div>
+      <div class="kpi-card"><div class="kpi-label">来客数</div><div class="kpi-value loading">—</div></div>
+      <div class="kpi-card"><div class="kpi-label">客単価</div><div class="kpi-value loading">—</div></div>
+      <div class="kpi-card"><div class="kpi-label">リピート率</div><div class="kpi-value loading">—</div></div>
+    </div>
+
+    <!-- グリッド: カテゴリ別 / 支払方法別 -->
+    <div class="report-grid">
+      <!-- カテゴリ別売上 -->
+      <div class="card">
+        <h2>カテゴリ別売上</h2>
+        <div id="categoryChart"><div class="loading">読み込み中...</div></div>
+      </div>
+
+      <!-- 支払方法別 -->
+      <div class="card">
+        <h2>支払方法内訳</h2>
+        <div id="paymentChart"><div class="loading">読み込み中...</div></div>
+      </div>
+    </div>
+
+    <!-- 売上トレンドグラフ -->
+    <div class="card" style="margin-bottom:16px">
+      <h2>売上トレンド</h2>
+      <div style="position:relative;height:200px;">
+        <canvas id="trendChart"></canvas>
+      </div>
+    </div>
+
+    <!-- 日別売上 -->
+    <div class="card" style="margin-bottom:16px">
+      <h2>日別売上</h2>
+      <div id="dailyTable"><div class="loading">読み込み中...</div></div>
+    </div>
+
+    <!-- 取引履歴 -->
+    <div class="card">
+      <h2>取引履歴</h2>
+      <div id="recordList"><div class="loading">読み込み中...</div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+let token  = '';
+let rangeMode = 'today';
+
+function doLogin() {
+  const pw = document.getElementById('loginPw').value.trim();
+  if (!pw) return;
+  token = pw;
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('mainScreen').style.display  = 'block';
+  setRange('today');
+  loadReport();
+}
+function doLogout() {
+  token = '';
+  document.getElementById('mainScreen').style.display  = 'none';
+  document.getElementById('loginScreen').style.display = 'flex';
+}
+document.getElementById('loginPw').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doLogin();
+});
+
+function pad(n) { return String(n).padStart(2, '0'); }
+function dateStr(d) { return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
+function fmt(n) { return `¥${(n||0).toLocaleString()}`; }
+
+function setRange(mode) {
+  rangeMode = mode;
+  ['today','week','month','custom'].forEach(m =>
+    document.getElementById(`btn-${m}`).classList.toggle('active', m === mode)
+  );
+  const cr = document.getElementById('customRange');
+  cr.style.display = mode === 'custom' ? 'flex' : 'none';
+}
+
+function getDateRange() {
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  if (rangeMode === 'today') {
+    const s = dateStr(today);
+    return { from: s, to: s };
+  }
+  if (rangeMode === 'week') {
+    const mon = new Date(today); mon.setDate(today.getDate() - today.getDay() + 1);
+    const sun = new Date(mon);   sun.setDate(mon.getDate() + 6);
+    return { from: dateStr(mon), to: dateStr(sun) };
+  }
+  if (rangeMode === 'month') {
+    const first = new Date(today.getFullYear(), today.getMonth(), 1);
+    const last  = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+    return { from: dateStr(first), to: dateStr(last) };
+  }
+  // custom
+  return {
+    from: document.getElementById('fromDate').value,
+    to:   document.getElementById('toDate').value,
+  };
+}
+
+async function loadReport() {
+  const { from, to } = getDateRange();
+  const params = new URLSearchParams();
+  if (from) params.set('from', from);
+  if (to)   params.set('to',   to);
+
+  let data;
+  try {
+    const res = await fetch(`/api/sales?${params}`, {
+      headers: { 'Authorization': `Bearer ${token}` },
+    });
+    data = await res.json();
+    if (data.error) { alert(`エラー: ${data.error}`); return; }
+  } catch (e) {
+    alert(`取得失敗: ${e.message}`); return;
+  }
+
+  const { summary, records, checkedIn } = data;
+  lastRecords = records || [];
+  renderKPI(summary, records);
+  renderCategoryChart(summary.byCategory, summary.totalRevenue);
+  renderPaymentChart(summary.byPayment);
+  renderTrendChart(summary.byDate);
+  renderDailyTable(summary.byDate);
+  renderRecords(records);
+}
+
+// ── KPI ──────────────────────────────────────────────────────
+function renderKPI(s, records) {
+  const avg = s.totalCount > 0 ? Math.round(s.totalRevenue / s.totalCount) : 0;
+  const grid = document.getElementById('kpiGrid');
+  grid.innerHTML = `
+    <div class="kpi-card"><div class="kpi-label">売上合計</div><div class="kpi-value">${fmt(s.totalRevenue)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">来客数</div><div class="kpi-value">${s.totalCount}<span class="kpi-unit">名</span></div></div>
+    <div class="kpi-card"><div class="kpi-label">客単価</div><div class="kpi-value">${fmt(avg)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">リピート率</div><div class="kpi-value">${s.repeatRate}<span class="kpi-unit">%</span></div></div>
+  `;
+}
+
+// ── カテゴリ別 ────────────────────────────────────────────────
+function renderCategoryChart(byCategory, total) {
+  const el = document.getElementById('categoryChart');
+  const entries = Object.entries(byCategory).sort((a,b) => b[1].revenue - a[1].revenue);
+  if (!entries.length) { el.innerHTML = '<div class="empty">データなし</div>'; return; }
+  const max = entries[0][1].revenue || 1;
+  el.innerHTML = entries.map(([cat, v]) => `
+    <div class="bar-row">
+      <div class="bar-label" title="${cat}">${cat}</div>
+      <div class="bar-wrap"><div class="bar-fill" style="width:${Math.round(v.revenue/max*100)}%"></div></div>
+      <div class="bar-val">${fmt(v.revenue)} (${v.count}件)</div>
+    </div>
+  `).join('');
+}
+
+// ── 支払方法別 ────────────────────────────────────────────────
+function renderPaymentChart(byPayment) {
+  const el = document.getElementById('paymentChart');
+  const total = Object.values(byPayment).reduce((s, v) => s + v.revenue, 0);
+  el.innerHTML = `
+    <div class="payment-row">
+      <div class="payment-block">
+        <div class="icon">💴</div>
+        <div class="cnt">${byPayment.cash?.count || 0}件</div>
+        <div class="amt">${fmt(byPayment.cash?.revenue || 0)}</div>
+        <div class="cnt">${total > 0 ? Math.round((byPayment.cash?.revenue||0)/total*100) : 0}%</div>
+      </div>
+      <div class="payment-block">
+        <div class="icon">💳</div>
+        <div class="cnt">${byPayment.card?.count || 0}件</div>
+        <div class="amt">${fmt(byPayment.card?.revenue || 0)}</div>
+        <div class="cnt">${total > 0 ? Math.round((byPayment.card?.revenue||0)/total*100) : 0}%</div>
+      </div>
+      <div class="payment-block">
+        <div class="icon">📱</div>
+        <div class="cnt">${byPayment.qr?.count || 0}件</div>
+        <div class="amt">${fmt(byPayment.qr?.revenue || 0)}</div>
+        <div class="cnt">${total > 0 ? Math.round((byPayment.qr?.revenue||0)/total*100) : 0}%</div>
+      </div>
+    </div>
+  `;
+}
+
+// ── 日別売上テーブル ──────────────────────────────────────────
+function renderDailyTable(byDate) {
+  const el = document.getElementById('dailyTable');
+  const entries = Object.entries(byDate).sort((a,b) => a[0].localeCompare(b[0]));
+  if (!entries.length) { el.innerHTML = '<div class="empty">データなし</div>'; return; }
+  el.innerHTML = `
+    <table class="table">
+      <thead><tr>
+        <th>日付</th><th class="num">来客数</th><th class="num">売上</th><th class="num">客単価</th>
+      </tr></thead>
+      <tbody>
+        ${entries.map(([date, v]) => `
+          <tr>
+            <td>${date}</td>
+            <td class="num">${v.count}名</td>
+            <td class="num">${fmt(v.revenue)}</td>
+            <td class="num">${fmt(v.count > 0 ? Math.round(v.revenue/v.count) : 0)}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+// ── 取引履歴 ─────────────────────────────────────────────────
+function renderRecords(records) {
+  const el = document.getElementById('recordList');
+  const sorted = [...records].sort((a,b) => b.checkoutAt?.localeCompare(a.checkoutAt||'') || 0);
+  if (!sorted.length) { el.innerHTML = '<div class="empty">取引履歴なし</div>'; return; }
+  const methodLabel = { cash: '💴 現金', card: '💳 カード', qr: '📱 QR払い' };
+  el.innerHTML = sorted.map(r => `
+    <div class="record-row">
+      <div class="record-left">
+        <div class="record-name">${r.customer || '—'}</div>
+        <div class="record-meta">${r.date} ${r.time} ／ ${r.menuName || '—'}</div>
+      </div>
+      <div class="record-right">
+        <div class="record-amounts">
+          <div class="record-price">${fmt(r.finalPrice)}</div>
+          <div class="record-method">${methodLabel[r.payment] || r.payment}</div>
+          ${r.discount > 0 ? `<div class="record-method">割引 ${fmt(r.discount)}</div>` : ''}
+        </div>
+        ${r.visitId ? `<a class="btn-receipt" href="/api/receipt?saleId=${r.visitId}&token=${encodeURIComponent(''+token)}" target="_blank">領収書</a>` : ''}
+      </div>
+    </div>
+  `).join('');
+}
+
+// ── 売上トレンドグラフ ────────────────────────────────────────
+let trendChartInstance = null;
+
+function renderTrendChart(byDate) {
+  const entries = Object.entries(byDate).sort((a, b) => a[0].localeCompare(b[0]));
+  const labels  = entries.map(([date]) => date.slice(5)); // MM-DD
+  const revenues = entries.map(([, v]) => v.revenue);
+  const counts   = entries.map(([, v]) => v.count);
+
+  const ctx = document.getElementById('trendChart').getContext('2d');
+  if (trendChartInstance) trendChartInstance.destroy();
+
+  trendChartInstance = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: '売上 (¥)',
+          data: revenues,
+          backgroundColor: 'rgba(238, 102, 0, 0.75)',
+          borderColor: '#e60',
+          borderWidth: 1,
+          borderRadius: 4,
+          yAxisID: 'yRevenue',
+        },
+        {
+          label: '来客数',
+          data: counts,
+          type: 'line',
+          borderColor: '#3f51b5',
+          backgroundColor: 'rgba(63,81,181,0.1)',
+          borderWidth: 2,
+          pointRadius: 3,
+          tension: 0.3,
+          yAxisID: 'yCount',
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'top', labels: { font: { size: 11 } } },
+        tooltip: {
+          callbacks: {
+            label: ctx => ctx.dataset.label === '売上 (¥)'
+              ? ` ¥${ctx.parsed.y.toLocaleString()}`
+              : ` ${ctx.parsed.y}名`,
+          },
+        },
+      },
+      scales: {
+        yRevenue: {
+          position: 'left',
+          ticks: {
+            callback: v => `¥${(v/1000).toFixed(0)}k`,
+            font: { size: 10 },
+          },
+          grid: { color: 'rgba(0,0,0,.05)' },
+        },
+        yCount: {
+          position: 'right',
+          ticks: { font: { size: 10 }, stepSize: 1 },
+          grid: { drawOnChartArea: false },
+        },
+        x: { ticks: { font: { size: 10 } } },
+      },
+    },
+  });
+}
+
+// ── CSV エクスポート ──────────────────────────────────────────
+let lastRecords = [];
+
+async function exportCSV() {
+  if (!lastRecords.length) { alert('先に「読み込む」を押してください'); return; }
+  const header = ['日付','時間','お客様名','電話番号','メニュー','カテゴリ','担当','通常価格','割引','会計金額','支払方法','会計日時'];
+  const rows = lastRecords.map(r => [
+    r.date, r.time, r.customer, r.phone, r.menuName, r.category, r.staff,
+    r.price, r.discount, r.finalPrice, r.payment, r.checkoutAt,
+  ]);
+  const csv = [header, ...rows].map(row =>
+    row.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')
+  ).join('\r\n');
+
+  const bom  = '\uFEFF'; // Excel UTF-8 BOM
+  const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  const { from, to } = getDateRange();
+  a.href     = url;
+  a.download = `sales_${from||'all'}_${to||'all'}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+</script>
+</body>
+</html>
