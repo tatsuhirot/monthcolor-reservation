@@ -4,6 +4,7 @@
     { "src": "/admin",     "dest": "/admin.html" },
     { "src": "/register",  "dest": "/register.html" },
     { "src": "/report",    "dest": "/report.html" },
+    { "src": "/customers",  "dest": "/customers.html" },
     { "src": "/",          "dest": "/reservation.html" }
   ],
   "crons": [

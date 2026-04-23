@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MONTH COLOR — 顧客カルテ</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: "Hiragino Sans", Meiryo, sans-serif; background: #f4f4f4; color: #333; font-size: 14px; }
+
+/* ── ログイン ── */
+#loginScreen { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+.login-card {
+  background: #fff; border-radius: 12px; padding: 40px 32px;
+  box-shadow: 0 4px 24px rgba(0,0,0,.1); width: 320px; text-align: center;
+}
+.login-card h1 { font-size: 18px; margin-bottom: 8px; }
+.login-card p  { color: #888; font-size: 12px; margin-bottom: 24px; }
+.login-card input {
+  width: 100%; padding: 10px 14px; border: 1px solid #ddd; border-radius: 8px;
+  font-size: 14px; margin-bottom: 16px;
+}
+.login-card button {
+  width: 100%; padding: 12px; background: #333; color: #fff;
+  border: none; border-radius: 8px; font-size: 15px; cursor: pointer;
+}
+.login-card button:hover { background: #555; }
+.error-msg { color: #c00; font-size: 12px; margin-top: 8px; }
+
+/* ── メイン ── */
+#mainScreen { display: none; }
+.header {
+  background: #fff; border-bottom: 1px solid #e0e0e0;
+  padding: 14px 20px; display: flex; align-items: center; justify-content: space-between;
+}
+.header h1 { font-size: 16px; }
+.header-actions { display: flex; gap: 8px; align-items: center; }
+.header-actions button {
+  background: none; border: 1px solid #ddd; border-radius: 6px;
+  padding: 6px 12px; font-size: 12px; cursor: pointer; color: #666;
+}
+.header-actions button:hover { background: #f0f0f0; }
+
+.container { max-width: 900px; margin: 0 auto; padding: 20px; }
+
+/* ── 検索バー ── */
+.search-bar {
+  display: flex; gap: 8px; margin-bottom: 20px;
+}
+.search-bar input {
+  flex: 1; padding: 10px 14px; border: 1px solid #ddd; border-radius: 8px;
+  font-size: 14px; background: #fff;
+}
+.search-bar input:focus { outline: none; border-color: #999; }
+.btn-search {
+  padding: 10px 20px; background: #333; color: #fff; border: none;
+  border-radius: 8px; font-size: 14px; cursor: pointer;
+}
+.btn-search:hover { background: #555; }
+.btn-clear {
+  padding: 10px 14px; background: #fff; color: #888; border: 1px solid #ddd;
+  border-radius: 8px; font-size: 14px; cursor: pointer;
+}
+.btn-clear:hover { background: #f0f0f0; }
+
+/* ── サマリー ── */
+.summary-bar {
+  font-size: 12px; color: #888; margin-bottom: 16px;
+}
+
+/* ── 顧客一覧 ── */
+.customer-list { display: flex; flex-direction: column; gap: 10px; }
+
+.customer-card {
+  background: #fff; border-radius: 10px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.06);
+  border-left: 4px solid #ddd;
+  overflow: hidden; cursor: pointer;
+  transition: box-shadow .15s;
+}
+.customer-card:hover { box-shadow: 0 2px 12px rgba(0,0,0,.1); }
+.customer-card.open { border-left-color: #e60; }
+
+.customer-header {
+  padding: 14px 20px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+.customer-name { font-size: 16px; font-weight: 700; }
+.customer-phone { font-size: 12px; color: #888; margin-top: 2px; }
+.customer-stats {
+  display: flex; gap: 16px; align-items: center; flex-wrap: wrap;
+}
+.stat-item { text-align: right; }
+.stat-label { font-size: 10px; color: #aaa; display: block; }
+.stat-value { font-size: 14px; font-weight: 600; color: #333; }
+.stat-value.money { color: #e60; }
+
+.chevron {
+  font-size: 12px; color: #bbb; margin-left: 12px;
+  transition: transform .2s;
+}
+.customer-card.open .chevron { transform: rotate(180deg); }
+
+/* ── 来店履歴 ── */
+.customer-history {
+  display: none; border-top: 1px solid #f0f0f0;
+  padding: 0 20px 16px;
+}
+.customer-card.open .customer-history { display: block; }
+
+.history-title {
+  font-size: 12px; color: #888; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.5px; padding: 12px 0 8px;
+}
+
+.history-item {
+  display: grid;
+  grid-template-columns: 80px 1fr auto;
+  gap: 8px 14px;
+  padding: 8px 0;
+  border-bottom: 1px solid #f5f5f5;
+  align-items: center;
+}
+.history-item:last-child { border-bottom: none; }
+
+.history-date { font-size: 12px; color: #888; }
+.history-menu { font-size: 13px; color: #333; }
+.history-meta { font-size: 11px; color: #aaa; margin-top: 2px; }
+.history-price { font-size: 13px; font-weight: 600; color: #333; text-align: right; white-space: nowrap; }
+.history-payment {
+  font-size: 10px; color: #888;
+  text-align: right; margin-top: 2px;
+}
+
+.badge-discount {
+  display: inline-block; font-size: 10px; background: #fff3cd;
+  color: #856404; padding: 1px 6px; border-radius: 4px; margin-left: 6px;
+}
+
+/* ── 空・ローディング ── */
+.empty-state { text-align: center; padding: 60px 20px; color: #aaa; font-size: 15px; }
+.loading     { text-align: center; padding: 60px 20px; color: #aaa; }
+
+/* ── トースト ── */
+#toast {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px);
+  background: #222; color: #fff; padding: 12px 24px; border-radius: 8px;
+  font-size: 14px; z-index: 200; transition: transform .3s ease, opacity .3s ease;
+  opacity: 0; pointer-events: none; white-space: nowrap;
+  box-shadow: 0 4px 20px rgba(0,0,0,.25);
+}
+#toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+#toast.error { background: #c00; }
+
+/* ── 顧客詳細バッジ ── */
+.fav-badge {
+  display: inline-block; font-size: 10px; background: #fff0e8;
+  color: #e60; padding: 2px 7px; border-radius: 4px; margin-left: 6px;
+  font-weight: 600;
+}
+</style>
+</head>
+<body>
+
+<!-- ログイン画面 -->
+<div id="loginScreen">
+  <div class="login-card">
+    <h1>MONTH COLOR</h1>
+    <p>顧客カルテ</p>
+    <input type="password" id="passwordInput" placeholder="パスワードを入力"
+           onkeydown="if(event.key==='Enter')login()">
+    <button onclick="login()">ログイン</button>
+    <div class="error-msg" id="loginError"></div>
+  </div>
+</div>
+
+<!-- メイン画面 -->
+<div id="mainScreen">
+  <div class="header">
+    <h1>👥 顧客カルテ</h1>
+    <div class="header-actions">
+      <a href="/admin"    style="text-decoration:none"><button>📋 予約管理</button></a>
+      <a href="/register" style="text-decoration:none"><button>🧾 会計</button></a>
+      <a href="/report"   style="text-decoration:none"><button>📊 レポート</button></a>
+      <button onclick="logout()">ログアウト</button>
+    </div>
+  </div>
+  <div class="container">
+    <div class="search-bar">
+      <input type="text" id="searchInput" placeholder="名前または電話番号で検索..."
+             onkeydown="if(event.key==='Enter')doSearch()">
+      <button class="btn-search" onclick="doSearch()">🔍 検索</button>
+      <button class="btn-clear"  onclick="clearSearch()">✕</button>
+    </div>
+    <div class="summary-bar" id="summaryBar"></div>
+    <div class="customer-list" id="customerList">
+      <div class="loading">読み込み中...</div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+let token = '';
+let allCustomers = [];
+
+/* ── 認証 ─────────────────────────────────────────── */
+async function login() {
+  const pw = document.getElementById('passwordInput').value.trim();
+  if (!pw) return;
+
+  const res = await fetch('/api/customers', {
+    headers: { 'Authorization': `Bearer ${pw}` }
+  });
+  if (res.status === 401) {
+    document.getElementById('loginError').textContent = 'パスワードが違います';
+    return;
+  }
+  token = pw;
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('mainScreen').style.display  = 'block';
+  const data = await res.json();
+  allCustomers = data.customers || [];
+  renderList(allCustomers);
+}
+
+function logout() {
+  token = '';
+  allCustomers = [];
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.getElementById('mainScreen').style.display  = 'none';
+  document.getElementById('passwordInput').value = '';
+}
+
+/* ── 検索 ─────────────────────────────────────────── */
+async function doSearch() {
+  const q = document.getElementById('searchInput').value.trim();
+  if (!q) { renderList(allCustomers); return; }
+
+  // 電話番号っぽければ phone 検索、そうでなければ name 検索
+  const isPhone = /^[\d\-\+\(\) ]+$/.test(q);
+  const param   = isPhone ? `phone=${encodeURIComponent(q)}` : `name=${encodeURIComponent(q)}`;
+  const res = await fetch(`/api/customers?${param}`, {
+    headers: { 'Authorization': `Bearer ${token}` }
+  });
+  const data = await res.json();
+
+  if (isPhone) {
+    renderList(data.customer ? [data.customer] : []);
+  } else {
+    renderList(data.customers || []);
+  }
+}
+
+function clearSearch() {
+  document.getElementById('searchInput').value = '';
+  renderList(allCustomers);
+}
+
+/* ── レンダリング ──────────────────────────────────── */
+function renderList(customers) {
+  const list = document.getElementById('customerList');
+  const summary = document.getElementById('summaryBar');
+
+  if (!customers.length) {
+    list.innerHTML = '<div class="empty-state">該当する顧客が見つかりません</div>';
+    summary.textContent = '';
+    return;
+  }
+
+  const totalVisits = customers.reduce((s, c) => s + c.visitCount, 0);
+  summary.textContent = `${customers.length}名 / 累計 ${totalVisits}来店`;
+
+  list.innerHTML = customers.map(c => renderCustomerCard(c)).join('');
+}
+
+function renderCustomerCard(c) {
+  const payLabels = { cash: '現金', card: 'カード', qr: 'QR' };
+
+  const historyRows = (c.history || []).map(h => {
+    const discountBadge = h.discount > 0
+      ? `<span class="badge-discount">-¥${h.discount.toLocaleString()}</span>`
+      : '';
+    const timeStr = h.time ? ` ${h.time}` : '';
+    return `
+      <div class="history-item">
+        <div>
+          <div class="history-date">${h.date || '—'}${timeStr}</div>
+        </div>
+        <div>
+          <div class="history-menu">${h.menuName || '—'}${discountBadge}</div>
+          <div class="history-meta">${h.category || ''}</div>
+        </div>
+        <div>
+          <div class="history-price">¥${(h.finalPrice || 0).toLocaleString()}</div>
+          <div class="history-payment">${payLabels[h.payment] || h.payment || '—'}</div>
+        </div>
+      </div>`;
+  }).join('');
+
+  const favBadge = c.favoriteMenu
+    ? `<span class="fav-badge">★ ${c.favoriteMenu}</span>`
+    : '';
+
+  return `
+    <div class="customer-card" onclick="toggleCard(this)">
+      <div class="customer-header">
+        <div>
+          <div class="customer-name">${c.name || '不明'}${favBadge}</div>
+          <div class="customer-phone">${c.phone || '電話番号なし'}</div>
+        </div>
+        <div style="display:flex;align-items:center">
+          <div class="customer-stats">
+            <div class="stat-item">
+              <span class="stat-label">来店回数</span>
+              <span class="stat-value">${c.visitCount}回</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">最終来店</span>
+              <span class="stat-value">${c.lastVisit || '—'}</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">累計</span>
+              <span class="stat-value money">¥${(c.totalSpent || 0).toLocaleString()}</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">平均</span>
+              <span class="stat-value">¥${(c.avgSpent || 0).toLocaleString()}</span>
+            </div>
+          </div>
+          <span class="chevron">▼</span>
+        </div>
+      </div>
+      <div class="customer-history">
+        <div class="history-title">来店履歴（${c.visitCount}件）</div>
+        ${historyRows || '<div style="padding:12px 0;color:#aaa;font-size:13px">履歴なし</div>'}
+      </div>
+    </div>`;
+}
+
+function toggleCard(el) {
+  el.classList.toggle('open');
+}
+
+/* ── トースト ──────────────────────────────────────── */
+function toast(msg, isError = false) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'show' + (isError ? ' error' : '');
+  setTimeout(() => { el.className = ''; }, 3000);
+}
+</script>
+</body>
+</html>
