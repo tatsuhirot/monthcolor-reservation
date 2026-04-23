@@ -202,6 +202,7 @@ body { font-family: "Hiragino Sans", Meiryo, sans-serif; background: #f4f4f4; co
   </div>
   <div class="container">
     <div class="filter-bar">
+      <button class="filter-btn" onclick="setFilter('today', this)">📅 今日</button>
       <button class="filter-btn active" onclick="setFilter('all', this)">すべて</button>
       <button class="filter-btn" onclick="setFilter('pending', this)">未処理</button>
       <button class="filter-btn" onclick="setFilter('completed', this)">登録済み</button>
@@ -384,9 +385,11 @@ function setFilter(filter, btn) {
 /* ── カード描画 ── */
 function renderCards() {
   const list = document.getElementById('cardList');
-  const filtered = reservations.filter(r =>
-    currentFilter === 'all' || r.status === currentFilter
-  );
+  const todayStr = new Date().toLocaleDateString('sv-SE'); // YYYY-MM-DD
+  const filtered = reservations.filter(r => {
+    if (currentFilter === 'today') return r.data?.date === todayStr;
+    return currentFilter === 'all' || r.status === currentFilter;
+  });
 
   if (filtered.length === 0) {
     list.innerHTML = '<div class="empty-state">該当する予約はありません</div>';

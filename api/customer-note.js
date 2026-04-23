@@ -53,9 +53,19 @@ module.exports = async function handler(req, res) {
 
   // ── GET ────────────────────────────────────────────────────────
   if (req.method === 'GET') {
-    const { phone, name } = req.query || {};
+    const { phone, name, all } = req.query || {};
     const notes = await loadNotes();
-    const key   = noteKey(phone, name);
+
+    // ?all=1 → 全ノートのキー一覧（phone番号→updatedAt）を返す
+    if (all === '1') {
+      const summary = {};
+      for (const [k, v] of Object.entries(notes)) {
+        summary[k] = { updatedAt: v.updatedAt };
+      }
+      return res.status(200).json({ notes: summary });
+    }
+
+    const key = noteKey(phone, name);
     return res.status(200).json(notes[key] || { note: '', updatedAt: null });
   }
 

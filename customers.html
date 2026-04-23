@@ -259,6 +259,7 @@ body { font-family: "Hiragino Sans", Meiryo, sans-serif; background: #f4f4f4; co
 let token = '';
 let allCustomers = [];
 let currentSort = 'lastVisit';
+let noteIndex = {};   // phone → true（メモあり）
 
 function getRank(c) {
   if (c.visitCount >= 5 || c.totalSpent >= 50000) return { label: '★ VIP',  cls: 'rank-vip' };
@@ -302,7 +303,32 @@ async function login() {
   document.getElementById('mainScreen').style.display  = 'block';
   const data = await res.json();
   allCustomers = data.customers || [];
+
+  // メモ一覧を並行取得してインジケーターに反映
+  fetchNoteIndex().catch(() => {});
   renderList(allCustomers);
+}
+
+async function fetchNoteIndex() {
+  const res = await fetch('/api/customer-note?all=1', {
+    headers: { 'Authorization': `Bearer ${token}` }
+  });
+  if (!res.ok) return;
+  const data = await res.json();
+  noteIndex = {};
+  for (const key of Object.keys(data.notes || {})) {
+    noteIndex[key] = true;
+  }
+  // 既にレンダリング済みのカードに緑ドットを反映
+  document.querySelectorAll('.customer-card').forEach(card => {
+    const phone = card.dataset.phone;
+    const name  = card.dataset.name;
+    const key   = phone || `_unnamed_${(name || 'unknown').replace(/\s/g, '_')}`;
+    if (noteIndex[key]) {
+      const dot = card.querySelector('.has-note-dot');
+      if (dot) dot.style.display = 'inline-block';
+    }
+  });
 }
 
 function logout() {
