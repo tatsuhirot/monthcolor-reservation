@@ -83,21 +83,22 @@ async function sendStaffNotification({ date, time, name, menuName, phone, email,
 
   const tasks = [];
 
-  // ── LINE Notify ────────────────────────────────────────────
-  if (process.env.LINE_NOTIFY_TOKEN) {
+  // ── LINE Push（Messaging API）────────────────────────────
+  if (process.env.LINE_CHANNEL_ACCESS_TOKEN && process.env.LINE_OWNER_USER_ID) {
     tasks.push(
-      fetch('https://notify-api.line.me/api/notify', {
+      fetch('https://api.line.me/v2/bot/message/push', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${process.env.LINE_NOTIFY_TOKEN}`,
-          'Content-Type': 'application/x-www-form-urlencoded',
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.LINE_CHANNEL_ACCESS_TOKEN}`,
         },
-        body: new URLSearchParams({
-          message: `\n【新規予約】\n${summary}`,
+        body: JSON.stringify({
+          to: process.env.LINE_OWNER_USER_ID,
+          messages: [{ type: 'text', text: `【新規予約】\n${summary}` }],
         }),
       }).then(r => {
-        if (!r.ok) throw new Error(`LINE Notify ${r.status}`);
-        console.log('📱 LINE Notify 送信完了');
+        if (!r.ok) throw new Error(`LINE Push ${r.status}`);
+        console.log('📱 LINE Push 送信完了');
       })
     );
   }
@@ -164,7 +165,7 @@ async function sendStaffNotification({ date, time, name, menuName, phone, email,
   }
 
   if (tasks.length === 0) {
-    console.log('ℹ️ スタッフ通知: LINE_NOTIFY_TOKEN / STAFF_NOTIFY_EMAIL が未設定のためスキップ');
+    console.log('ℹ️ スタッフ通知: LINE_CHANNEL_ACCESS_TOKEN / STAFF_NOTIFY_EMAIL が未設定のためスキップ');
     return;
   }
 

@@ -41,16 +41,19 @@ async function notifyStaff(label, { date, time, name, menuName }) {
 
   const tasks = [];
 
-  if (process.env.LINE_NOTIFY_TOKEN) {
+  if (process.env.LINE_CHANNEL_ACCESS_TOKEN && process.env.LINE_OWNER_USER_ID) {
     tasks.push(
-      fetch('https://notify-api.line.me/api/notify', {
+      fetch('https://api.line.me/v2/bot/message/push', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${process.env.LINE_NOTIFY_TOKEN}`,
-          'Content-Type': 'application/x-www-form-urlencoded',
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.LINE_CHANNEL_ACCESS_TOKEN}`,
         },
-        body: new URLSearchParams({ message: `\n【${label}】\n${body}` }),
-      }).then(r => { if (!r.ok) throw new Error(`LINE Notify ${r.status}`); })
+        body: JSON.stringify({
+          to: process.env.LINE_OWNER_USER_ID,
+          messages: [{ type: 'text', text: `【${label}】\n${body}` }],
+        }),
+      }).then(r => { if (!r.ok) throw new Error(`LINE Push ${r.status}`); })
     );
   }
 

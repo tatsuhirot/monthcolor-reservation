@@ -271,8 +271,9 @@ body { font-family: "Hiragino Sans", Meiryo, sans-serif; background: #f4f4f4; co
         </div>
         <div class="form-row">
           <label>電話番号</label>
-          <input type="tel" id="ci-phone" placeholder="09012345678">
+          <input type="tel" id="ci-phone" placeholder="09012345678" onblur="lookupCustomer(this.value)">
         </div>
+        <div id="ci-customer-hint" style="display:none;margin:0 0 10px;padding:10px 12px;background:#f9f5ee;border-left:3px solid #c9a87a;border-radius:0 6px 6px 0;font-size:13px;line-height:1.7"></div>
         <div class="form-row">
           <label>メニュー</label>
           <select id="ci-menu">
@@ -566,6 +567,39 @@ async function checkinFromReservation(encoded) {
     setTimeout(() => { switchTab('waiting'); }, 800);
   } else {
     showToast(`❌ エラー: ${res.error}`);
+  }
+}
+
+// ── 電話番号から顧客情報を自動ルックアップ ────────────────────
+async function lookupCustomer(phone) {
+  const hint = document.getElementById('ci-customer-hint');
+  if (!phone || phone.length < 10) { hint.style.display = 'none'; return; }
+  try {
+    const [custData, noteData] = await Promise.all([
+      apiFetch(`/api/customers?q=${encodeURIComponent(phone)}`),
+      apiFetch(`/api/customer-note?phone=${encodeURIComponent(phone)}`).catch(() => ({})),
+    ]);
+    const list = custData.customers || [];
+    if (!list.length) { hint.style.display = 'none'; return; }
+    const c = list[0];
+    // 名前フィールドが空なら自動補完
+    const nameEl = document.getElementById('ci-name');
+    if (!nameEl.value && c.name) nameEl.value = c.name;
+    // ヒント表示
+    const parts = [
+      `<strong>${c.name}</strong>`,
+      c.visitCount ? `来店 ${c.visitCount}回` : null,
+      c.lastVisit  ? `前回 ${c.lastVisit}` : null,
+      c.favoriteMenu ? `★ ${c.favoriteMenu}` : null,
+    ].filter(Boolean).join(' ・ ');
+    const note = noteData.note || '';
+    const noteHtml = note
+      ? `<div style="margin-top:5px;color:#8a6a2a">📝 ${note}</div>`
+      : '';
+    hint.innerHTML = parts + noteHtml;
+    hint.style.display = 'block';
+  } catch (e) {
+    hint.style.display = 'none';
   }
 }
 

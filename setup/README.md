@@ -22,7 +22,15 @@ ADMIN_PASSWORD=staff_password
 RESEND_API_KEY=resend_api_key
 MAIL_FROM=noreply@yourdomain.com
 STAFF_NOTIFY_EMAIL=staff@yourdomain.com
+LINE_CHANNEL_ACCESS_TOKEN=line_channel_access_token   # LINE Messaging API（任意）
+LINE_OWNER_USER_ID=Uxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx  # LINEオーナーのユーザーID（任意）
 ```
+
+> **LINE通知の設定方法**
+> 1. [LINE Developers](https://developers.line.biz/) でMessaging APIチャンネルを作成
+> 2. チャンネルアクセストークン（長期）を発行 → `LINE_CHANNEL_ACCESS_TOKEN`
+> 3. オーナーが対象Botを友達追加 → `https://api.line.me/v2/profile` でユーザーIDを確認 → `LINE_OWNER_USER_ID`
+> 4. Vercelの環境変数にも同様に設定する
 
 ### 3. SalonBoard セッションを初期化
 
