@@ -156,12 +156,25 @@ async function registerInSalonBoard({ date, time, name, menuName }) {
       const loginPw = process.env.SALONBOARD_PASSWORD;
       if (!loginId || !loginPw) throw new Error('SALONBOARD_LOGIN_ID / SALONBOARD_PASSWORD が .env に未設定です');
 
-      await page.fill('input[name="loginId"], #loginId, input[type="text"]', loginId);
+      await page.fill('input[name="userId"], input[name="loginId"], input[type="text"]', loginId);
       await page.fill('input[name="password"], #password, input[type="password"]', loginPw);
-      await page.click('button[type="submit"], input[type="submit"], .loginBtn');
-      await page.waitForURL(/salonboard\.com\/(CLP|CLS)\//, { timeout: 30_000 });
+      await page.click('.loginBtnSize, button[type="submit"], input[type="submit"]');
+      try {
+        await page.waitForFunction(
+          () => !window.location.href.includes('/login/'),
+          { timeout: 30_000 }
+        );
+      } catch {
+        const url = page.url();
+        await page.screenshot({ path: '/tmp/salonboard-login-fail-worker.png', fullPage: true }).catch(() => null);
+        throw new Error(`SalonBoard login timeout at: ${url}`);
+      }
+      const afterUrl = page.url();
+      if (afterUrl.includes('/login/') || afterUrl.includes('/CNC/login/')) {
+        throw new Error(`SalonBoard login failed - redirected back to login: ${afterUrl}`);
+      }
       await context.storageState({ path: statePath });
-      console.log('   ✅ ログイン成功');
+      console.log('   ✅ ログイン成功 →', afterUrl);
     }
 
     const dateKey = date.replace(/-/g, '');
@@ -255,10 +268,13 @@ async function cancelInSalonBoard({ date, time, name }) {
       const loginId = process.env.SALONBOARD_LOGIN_ID;
       const loginPw = process.env.SALONBOARD_PASSWORD;
       if (!loginId || !loginPw) throw new Error('認証情報が未設定です');
-      await page.fill('input[name="loginId"], #loginId, input[type="text"]', loginId);
+      await page.fill('input[name="userId"], input[name="loginId"], input[type="text"]', loginId);
       await page.fill('input[name="password"], #password, input[type="password"]', loginPw);
-      await page.click('button[type="submit"], input[type="submit"], .loginBtn');
-      await page.waitForURL(/salonboard\.com\/(CLP|CLS)\//, { timeout: 30_000 });
+      await page.click('.loginBtnSize, button[type="submit"], input[type="submit"]');
+      await page.waitForFunction(
+        () => !window.location.href.includes('/login/'),
+        { timeout: 30_000 }
+      );
       await context.storageState({ path: statePath });
     }
 

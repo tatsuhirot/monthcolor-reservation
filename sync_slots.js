@@ -82,8 +82,17 @@ async function syncSlots() {
       const loginPw = process.env.SALONBOARD_PASSWORD;
       if (!loginId || !loginPw) throw new Error('SALONBOARD_LOGIN_ID / SALONBOARD_PASSWORD が .env に未設定です');
 
+      console.log('🔑 ログインID:', loginId, '/ URL:', page.url());
+      await page.screenshot({ path: '/tmp/salonboard-before-login.png', fullPage: true }).catch(() => null);
+
+      const idField = await page.$('input[name="userId"], input[name="loginId"], input[type="text"]');
+      if (!idField) throw new Error('ログインIDフィールドが見つかりません（ページ構造が変わった可能性）');
       await page.fill('input[name="userId"], input[name="loginId"], input[type="text"]', loginId);
       await page.fill('input[name="password"], #password, input[type="password"]', loginPw);
+
+      const loginBtn = await page.$('.loginBtnSize, button[type="submit"], input[type="submit"]');
+      if (!loginBtn) throw new Error('ログインボタンが見つかりません');
+      console.log('🖱  ログインボタンをクリック');
       await page.click('.loginBtnSize, button[type="submit"], input[type="submit"]');
 
       // ログイン後URLを柔軟に待機（CLP/CLS に限定せず「/login/ から離れる」で判定）
