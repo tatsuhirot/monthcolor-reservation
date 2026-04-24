@@ -120,29 +120,41 @@ async function syncSlots() {
       console.log('✅ SalonBoard セッション再利用');
     }
 
-    // ── 各月のカレンダーをスクレイピング ────────────────────────
+    // ── 各週のカレンダーをスクレイピング ────────────────────────
+    // SalonBoardは週単位表示のため、今日から1週間ごとにリクエスト
     const allSlots = {};
     const now = new Date();
+    const endDate = new Date(now.getFullYear(), now.getMonth() + monthCount, 0); // 最終月末
 
-    for (let i = 0; i < monthCount; i++) {
-      const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
-      const dateKey = `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}01`;
-      const label   = `${d.getFullYear()}年${d.getMonth()+1}月`;
+    let weekStart = new Date(now);
+    let weekIndex = 0;
+
+    while (weekStart <= endDate) {
+      const dateKey = `${weekStart.getFullYear()}${String(weekStart.getMonth()+1).padStart(2,'0')}${String(weekStart.getDate()).padStart(2,'0')}`;
+      const label   = `${weekStart.getFullYear()}/${weekStart.getMonth()+1}/${weekStart.getDate()}週`;
 
       await page.goto(
         `https://salonboard.com/CLP/bt/schedule/salonSchedule/?pv_date=${dateKey}`,
         { waitUntil: 'networkidle' }
       );
-      await page.waitForTimeout(2000);
+      await page.waitForTimeout(1500);
 
       const html  = await page.content();
       const slots = parseEmptySlots(html);
 
-      Object.assign(allSlots, slots);
-      const dayCount = Object.keys(slots).length;
+      const dayCount  = Object.keys(slots).length;
       const slotCount = Object.values(slots).reduce((s, a) => s + a.length, 0);
-      console.log(`✅ ${label}: ${dayCount}日分 / ${slotCount}枠 の空き枠を取得`);
+      if (dayCount > 0) {
+        Object.assign(allSlots, slots);
+        console.log(`✅ ${label}: ${dayCount}日分 / ${slotCount}枠`);
+      } else {
+        console.log(`   ${label}: 空き枠なし`);
+      }
+
+      weekStart.setDate(weekStart.getDate() + 7);
+      weekIndex++;
     }
+    console.log(`\n合計: ${Object.keys(allSlots).length}日分の空き枠を取得`);
 
     await context.storageState({ path: statePath });
 
