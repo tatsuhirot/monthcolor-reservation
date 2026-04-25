@@ -74,8 +74,9 @@ async function syncSlots() {
 
   try {
     // ── ログイン ────────────────────────────────────────────────
-    await page.goto('https://salonboard.com/login/', { waitUntil: 'domcontentloaded', timeout: 60_000 });
-    const isLoggedIn = await page.$('#jsiSchedule, .scheduleArea, .sideMenuArea');
+    // SP版ログインページ（/login_sp/）を使用 — PC版より軽量でbot検知が緩い
+    await page.goto('https://salonboard.com/login_sp/', { waitUntil: 'domcontentloaded', timeout: 60_000 });
+    const isLoggedIn = await page.$('#jsiSchedule, .scheduleArea, .sideMenuArea, .sp-menu, [class*="schedule"]');
 
     if (!isLoggedIn) {
       const loginId = process.env.SALONBOARD_LOGIN_ID;
@@ -93,16 +94,13 @@ async function syncSlots() {
       const loginBtn = await page.$('.loginBtnSize, button[type="submit"], input[type="submit"]');
       if (!loginBtn) throw new Error('ログインボタンが見つかりません');
       console.log('🖱  ログインボタンをクリック');
-      await page.click('.loginBtnSize, button[type="submit"], input[type="submit"]');
 
-      // ログイン後の遷移を待機
-      // /CNC/login/doLogin/ は処理中の中間URLで /login/ を含むため、
-      // /doLogin/ から離れた時点で判定する
+      // click と navigation を同時に待機する（フォーム送信後のリダイレクトを確実に捕捉）
       try {
-        await page.waitForFunction(
-          () => !window.location.href.includes('/doLogin/'),
-          { timeout: 30_000 }
-        );
+        await Promise.all([
+          page.waitForNavigation({ waitUntil: 'networkidle', timeout: 30_000 }),
+          page.click('.loginBtnSize, button[type="submit"], input[type="submit"]'),
+        ]);
       } catch {
         const url = page.url();
         await page.screenshot({ path: '/tmp/salonboard-login-fail.png', fullPage: true }).catch(() => null);
@@ -111,7 +109,8 @@ async function syncSlots() {
       }
 
       const afterUrl = page.url();
-      if (afterUrl.includes('/login/') || afterUrl.includes('/CNC/login/')) {
+      if (afterUrl.includes('/login')) {
+        await page.screenshot({ path: '/tmp/salonboard-login-fail.png', fullPage: true }).catch(() => null);
         throw new Error(`SalonBoard login failed - redirected back to login: ${afterUrl}`);
       }
       await context.storageState({ path: statePath });

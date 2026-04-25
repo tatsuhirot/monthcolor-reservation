@@ -148,9 +148,9 @@ async function registerInSalonBoard({ date, time, name, menuName }) {
 
   try {
     console.log('   🔐 SalonBoard にアクセス中...');
-    await page.goto('https://salonboard.com/login/', { waitUntil: 'networkidle' });
+    await page.goto('https://salonboard.com/login_sp/', { waitUntil: 'domcontentloaded', timeout: 60_000 });
 
-    const isLoggedIn = await page.$('#jsiSchedule, .scheduleArea, .sideMenuArea');
+    const isLoggedIn = await page.$('#jsiSchedule, .scheduleArea, .sideMenuArea, .sp-menu, [class*="schedule"]');
     if (!isLoggedIn) {
       const loginId = process.env.SALONBOARD_LOGIN_ID;
       const loginPw = process.env.SALONBOARD_PASSWORD;
@@ -158,19 +158,18 @@ async function registerInSalonBoard({ date, time, name, menuName }) {
 
       await page.fill('input[name="userId"], input[name="loginId"], input[type="text"]', loginId);
       await page.fill('input[name="password"], #password, input[type="password"]', loginPw);
-      await page.click('.loginBtnSize, button[type="submit"], input[type="submit"]');
       try {
-        await page.waitForFunction(
-          () => !window.location.href.includes('/doLogin/'),
-          { timeout: 30_000 }
-        );
+        await Promise.all([
+          page.waitForNavigation({ waitUntil: 'networkidle', timeout: 30_000 }),
+          page.click('.loginBtnSize, button[type="submit"], input[type="submit"]'),
+        ]);
       } catch {
         const url = page.url();
         await page.screenshot({ path: '/tmp/salonboard-login-fail-worker.png', fullPage: true }).catch(() => null);
         throw new Error(`SalonBoard login timeout at: ${url}`);
       }
       const afterUrl = page.url();
-      if (afterUrl.includes('/login/') || afterUrl.includes('/CNC/login/')) {
+      if (afterUrl.includes('/login')) {
         throw new Error(`SalonBoard login failed - redirected back to login: ${afterUrl}`);
       }
       await context.storageState({ path: statePath });
@@ -262,19 +261,18 @@ async function cancelInSalonBoard({ date, time, name }) {
 
   try {
     // ログイン確認
-    await page.goto('https://salonboard.com/login/', { waitUntil: 'networkidle' });
-    const isLoggedIn = await page.$('#jsiSchedule, .scheduleArea, .sideMenuArea');
+    await page.goto('https://salonboard.com/login_sp/', { waitUntil: 'domcontentloaded', timeout: 60_000 });
+    const isLoggedIn = await page.$('#jsiSchedule, .scheduleArea, .sideMenuArea, .sp-menu, [class*="schedule"]');
     if (!isLoggedIn) {
       const loginId = process.env.SALONBOARD_LOGIN_ID;
       const loginPw = process.env.SALONBOARD_PASSWORD;
       if (!loginId || !loginPw) throw new Error('認証情報が未設定です');
       await page.fill('input[name="userId"], input[name="loginId"], input[type="text"]', loginId);
       await page.fill('input[name="password"], #password, input[type="password"]', loginPw);
-      await page.click('.loginBtnSize, button[type="submit"], input[type="submit"]');
-      await page.waitForFunction(
-        () => !window.location.href.includes('/login/'),
-        { timeout: 30_000 }
-      );
+      await Promise.all([
+        page.waitForNavigation({ waitUntil: 'networkidle', timeout: 30_000 }),
+        page.click('.loginBtnSize, button[type="submit"], input[type="submit"]'),
+      ]);
       await context.storageState({ path: statePath });
     }
 
