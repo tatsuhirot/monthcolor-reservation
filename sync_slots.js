@@ -95,18 +95,18 @@ async function syncSlots() {
       console.log('🖱  ログインボタンをクリック');
       await page.click('.loginBtnSize, button[type="submit"], input[type="submit"]');
 
-      // ログイン後URLを柔軟に待機（CLP/CLS に限定せず「/login/ から離れる」で判定）
+      // ログイン後の遷移を待機
+      // /CNC/login/doLogin/ は処理中の中間URLで /login/ を含むため、
+      // /doLogin/ から離れた時点で判定する
       try {
         await page.waitForFunction(
-          () => !window.location.href.includes('/login/'),
+          () => !window.location.href.includes('/doLogin/'),
           { timeout: 30_000 }
         );
       } catch {
-        // タイムアウト時: 現在のURLとスクリーンショットを出力して診断
         const url = page.url();
-        const shot = await page.screenshot({ path: '/tmp/salonboard-login-fail.png', fullPage: true }).catch(() => null);
+        await page.screenshot({ path: '/tmp/salonboard-login-fail.png', fullPage: true }).catch(() => null);
         console.error('❌ ログインタイムアウト。現在URL:', url);
-        if (shot) console.log('スクリーンショット保存: /tmp/salonboard-login-fail.png');
         throw new Error(`SalonBoard login timeout at: ${url}`);
       }
 

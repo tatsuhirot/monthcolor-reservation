@@ -161,7 +161,7 @@ async function registerInSalonBoard({ date, time, name, menuName }) {
       await page.click('.loginBtnSize, button[type="submit"], input[type="submit"]');
       try {
         await page.waitForFunction(
-          () => !window.location.href.includes('/login/'),
+          () => !window.location.href.includes('/doLogin/'),
           { timeout: 30_000 }
         );
       } catch {
