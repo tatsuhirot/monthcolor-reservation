@@ -63,22 +63,18 @@ async function syncSlotsIfNeeded() {
   }
 
   console.log(`[${now()}] 🗓 空き枠同期を開始します...`);
-  fs.writeFileSync(lockPath, String(process.pid)); // ロック取得
+  // ロックは sync_slots.js 自身が管理する（ここで書くと子プロセスが弾かれる）
 
-  try {
-    const result = spawnSync('node', ['sync_slots.js'], {
-      cwd: __dirname,
-      stdio: 'inherit',  // ログをそのまま表示
-      timeout: 5 * 60_000, // 5分タイムアウト
-    });
-    if (result.status === 0) {
-      lastSlotsSync = Date.now();
-      console.log(`[${now()}] ✅ 空き枠同期完了`);
-    } else {
-      console.error(`[${now()}] ❌ 空き枠同期失敗 (exit: ${result.status})`);
-    }
-  } finally {
-    fs.rmSync(lockPath, { force: true }); // ロック解放
+  const result = spawnSync('node', ['sync_slots.js'], {
+    cwd: __dirname,
+    stdio: 'inherit',  // ログをそのまま表示
+    timeout: 5 * 60_000, // 5分タイムアウト
+  });
+  if (result.status === 0) {
+    lastSlotsSync = Date.now();
+    console.log(`[${now()}] ✅ 空き枠同期完了`);
+  } else {
+    console.error(`[${now()}] ❌ 空き枠同期失敗 (exit: ${result.status})`);
   }
 }
 
