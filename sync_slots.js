@@ -14,6 +14,9 @@ const { firefox } = require('playwright');
 const { put, head } = require('@vercel/blob');
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
+
+const tmpDir = os.tmpdir(); // Windows: %TEMP%, Linux: /tmp
 
 const stateDir  = path.join(__dirname, '.state');
 const statePath = path.join(stateDir, 'salonboard.json');
@@ -84,7 +87,7 @@ async function syncSlots() {
       if (!loginId || !loginPw) throw new Error('SALONBOARD_LOGIN_ID / SALONBOARD_PASSWORD が .env に未設定です');
 
       console.log('🔑 ログインID:', loginId, '/ URL:', page.url());
-      await page.screenshot({ path: '/tmp/salonboard-before-login.png', fullPage: true }).catch(() => null);
+      await page.screenshot({ path: path.join(tmpDir, 'salonboard-before-login.png'), fullPage: true }).catch(() => null);
 
       const idField = await page.$('input[name="userId"], input[name="loginId"], input[type="text"]');
       if (!idField) throw new Error('ログインIDフィールドが見つかりません（ページ構造が変わった可能性）');
@@ -95,24 +98,25 @@ async function syncSlots() {
       if (!loginBtn) throw new Error('ログインボタンが見つかりません');
       console.log('🖱  ログインボタンをクリック');
 
-      // click と navigation を同時に待機する（フォーム送信後のリダイレクトを確実に捕捉）
+      // waitForURL で URL 変化を待つ（waitForNavigation より確実）
       try {
         await Promise.all([
-          page.waitForNavigation({ waitUntil: 'networkidle', timeout: 30_000 }),
-          page.click('.loginBtnSize, button[type="submit"], input[type="submit"]'),
+          page.waitForURL(url => !url.includes('/login'), { timeout: 30_000 }),
+          loginBtn.click(),
         ]);
       } catch {
         const url = page.url();
-        await page.screenshot({ path: '/tmp/salonboard-login-fail.png', fullPage: true }).catch(() => null);
+        await page.screenshot({ path: path.join(tmpDir, 'salonboard-login-fail.png'), fullPage: true }).catch(() => null);
+        // セッションが壊れている可能性があるためリセット
+        if (fs.existsSync(statePath)) {
+          fs.rmSync(statePath, { force: true });
+          console.warn('⚠️  セッションファイルを削除しました（次回は再ログインします）');
+        }
         console.error('❌ ログインタイムアウト。現在URL:', url);
         throw new Error(`SalonBoard login timeout at: ${url}`);
       }
 
       const afterUrl = page.url();
-      if (afterUrl.includes('/login')) {
-        await page.screenshot({ path: '/tmp/salonboard-login-fail.png', fullPage: true }).catch(() => null);
-        throw new Error(`SalonBoard login failed - redirected back to login: ${afterUrl}`);
-      }
       await context.storageState({ path: statePath });
       console.log('✅ SalonBoard ログイン完了 →', afterUrl);
     } else {

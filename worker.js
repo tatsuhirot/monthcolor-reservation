@@ -19,6 +19,9 @@ const { firefox } = require('playwright');
 const { spawnSync } = require('child_process');
 const fs   = require('fs');
 const path = require('path');
+const os   = require('os');
+
+const tmpDir = os.tmpdir();
 
 const QUEUE_KEY         = 'reservations-queue.json';
 const POLL_INTERVAL     = 60_000;        // 60秒ごとにキュー確認
@@ -156,20 +159,20 @@ async function registerInSalonBoard({ date, time, name, menuName }) {
       await page.fill('input[name="password"], #password, input[type="password"]', loginPw);
       try {
         await Promise.all([
-          page.waitForNavigation({ waitUntil: 'networkidle', timeout: 30_000 }),
+          page.waitForURL(url => !url.includes('/login'), { timeout: 30_000 }),
           page.click('.loginBtnSize, button[type="submit"], input[type="submit"]'),
         ]);
       } catch {
         const url = page.url();
-        await page.screenshot({ path: '/tmp/salonboard-login-fail-worker.png', fullPage: true }).catch(() => null);
+        await page.screenshot({ path: path.join(tmpDir, 'salonboard-login-fail-worker.png'), fullPage: true }).catch(() => null);
+        if (fs.existsSync(statePath)) {
+          fs.rmSync(statePath, { force: true });
+          console.warn('   ⚠️  セッションファイルを削除しました');
+        }
         throw new Error(`SalonBoard login timeout at: ${url}`);
       }
-      const afterUrl = page.url();
-      if (afterUrl.includes('/login')) {
-        throw new Error(`SalonBoard login failed - redirected back to login: ${afterUrl}`);
-      }
       await context.storageState({ path: statePath });
-      console.log('   ✅ ログイン成功 →', afterUrl);
+      console.log('   ✅ ログイン成功 →', page.url());
     }
 
     const dateKey = date.replace(/-/g, '');
@@ -266,7 +269,7 @@ async function cancelInSalonBoard({ date, time, name }) {
       await page.fill('input[name="userId"], input[name="loginId"], input[type="text"]', loginId);
       await page.fill('input[name="password"], #password, input[type="password"]', loginPw);
       await Promise.all([
-        page.waitForNavigation({ waitUntil: 'networkidle', timeout: 30_000 }),
+        page.waitForURL(url => !url.includes('/login'), { timeout: 30_000 }),
         page.click('.loginBtnSize, button[type="submit"], input[type="submit"]'),
       ]);
       await context.storageState({ path: statePath });
