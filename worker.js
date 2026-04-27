@@ -366,7 +366,7 @@ async function saveQueue(queue) {
   await put(QUEUE_KEY, JSON.stringify(queue, null, 2), {
     access:          'public',
     token:           process.env.BLOB_READ_WRITE_TOKEN,
-    overwrite:       true,
+    allowOverwrite:  true,
     contentType:     'application/json',
     addRandomSuffix: false,
   });

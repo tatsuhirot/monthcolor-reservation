@@ -167,7 +167,7 @@ async function syncSlots() {
     await put(SLOTS_KEY, payload, {
       access: 'public',
       addRandomSuffix: false,
-      overwrite: true,
+      allowOverwrite: true,
       token: process.env.BLOB_READ_WRITE_TOKEN,
     });
 
