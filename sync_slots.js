@@ -98,25 +98,26 @@ async function syncSlots() {
       if (!loginBtn) throw new Error('ログインボタンが見つかりません');
       console.log('🖱  ログインボタンをクリック');
 
-      // waitForURL で URL 変化を待つ（waitForNavigation より確実）
-      try {
-        await Promise.all([
-          page.waitForURL(url => !url.includes('/login'), { timeout: 30_000 }),
-          loginBtn.click(),
-        ]);
-      } catch {
-        const url = page.url();
+      // SP版はAJAX認証のためURLが変化しない → クリック後に直接スケジュールページへ遷移して確認
+      await loginBtn.click();
+      await page.waitForTimeout(3000); // AJAX完了を待つ
+
+      // スケジュールページへ移動してセッションが有効か確認
+      await page.goto('https://salonboard.com/CLP/bt/schedule/salonSchedule/', {
+        waitUntil: 'domcontentloaded', timeout: 30_000,
+      });
+      const afterUrl = page.url();
+
+      if (afterUrl.includes('/login')) {
+        // ログインページにリダイレクトされた → 認証失敗
         await page.screenshot({ path: path.join(tmpDir, 'salonboard-login-fail.png'), fullPage: true }).catch(() => null);
-        // セッションが壊れている可能性があるためリセット
         if (fs.existsSync(statePath)) {
           fs.rmSync(statePath, { force: true });
-          console.warn('⚠️  セッションファイルを削除しました（次回は再ログインします）');
+          console.warn('⚠️  セッションファイルを削除しました');
         }
-        console.error('❌ ログインタイムアウト。現在URL:', url);
-        throw new Error(`SalonBoard login timeout at: ${url}`);
+        throw new Error(`SalonBoard login failed (redirected to login): ${afterUrl}`);
       }
 
-      const afterUrl = page.url();
       await context.storageState({ path: statePath });
       console.log('✅ SalonBoard ログイン完了 →', afterUrl);
     } else {

@@ -157,19 +157,19 @@ async function registerInSalonBoard({ date, time, name, menuName }) {
 
       await page.fill('input[name="userId"], input[name="loginId"], input[type="text"]', loginId);
       await page.fill('input[name="password"], #password, input[type="password"]', loginPw);
-      try {
-        await Promise.all([
-          page.waitForURL(url => !url.includes('/login'), { timeout: 30_000 }),
-          page.click('.loginBtnSize, button[type="submit"], input[type="submit"]'),
-        ]);
-      } catch {
-        const url = page.url();
+      await page.click('.loginBtnSize, button[type="submit"], input[type="submit"]');
+      await page.waitForTimeout(3000); // AJAX完了を待つ
+
+      // スケジュールページへ移動してセッションが有効か確認
+      const dateKey = date.replace(/-/g, '');
+      await page.goto(
+        `https://salonboard.com/CLP/bt/schedule/salonSchedule/?pv_date=${dateKey}`,
+        { waitUntil: 'domcontentloaded', timeout: 30_000 }
+      );
+      if (page.url().includes('/login')) {
         await page.screenshot({ path: path.join(tmpDir, 'salonboard-login-fail-worker.png'), fullPage: true }).catch(() => null);
-        if (fs.existsSync(statePath)) {
-          fs.rmSync(statePath, { force: true });
-          console.warn('   ⚠️  セッションファイルを削除しました');
-        }
-        throw new Error(`SalonBoard login timeout at: ${url}`);
+        if (fs.existsSync(statePath)) fs.rmSync(statePath, { force: true });
+        throw new Error(`SalonBoard login failed`);
       }
       await context.storageState({ path: statePath });
       console.log('   ✅ ログイン成功 →', page.url());
@@ -268,10 +268,8 @@ async function cancelInSalonBoard({ date, time, name }) {
       if (!loginId || !loginPw) throw new Error('認証情報が未設定です');
       await page.fill('input[name="userId"], input[name="loginId"], input[type="text"]', loginId);
       await page.fill('input[name="password"], #password, input[type="password"]', loginPw);
-      await Promise.all([
-        page.waitForURL(url => !url.includes('/login'), { timeout: 30_000 }),
-        page.click('.loginBtnSize, button[type="submit"], input[type="submit"]'),
-      ]);
+      await page.click('.loginBtnSize, button[type="submit"], input[type="submit"]');
+      await page.waitForTimeout(3000);
       await context.storageState({ path: statePath });
     }
 
