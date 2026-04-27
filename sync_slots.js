@@ -138,7 +138,7 @@ async function syncSlots() {
       const label   = `${weekStart.getFullYear()}/${weekStart.getMonth()+1}/${weekStart.getDate()}週`;
 
       await page.goto(
-        `https://salonboard.com/CLP/bt/schedule/salonSchedule/?pv_date=${dateKey}`,
+        `https://salonboard.com/CLP/bt/schedule/salonSchedule/?date=${dateKey}`,
         { waitUntil: 'networkidle' }
       );
       await page.waitForTimeout(1500);

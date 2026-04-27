@@ -163,7 +163,7 @@ async function registerInSalonBoard({ date, time, name, menuName }) {
       // スケジュールページへ移動してセッションが有効か確認
       const dateKey = date.replace(/-/g, '');
       await page.goto(
-        `https://salonboard.com/CLP/bt/schedule/salonSchedule/?pv_date=${dateKey}`,
+        `https://salonboard.com/CLP/bt/schedule/salonSchedule/?date=${dateKey}`,
         { waitUntil: 'domcontentloaded', timeout: 30_000 }
       );
       if (page.url().includes('/login')) {
@@ -177,7 +177,7 @@ async function registerInSalonBoard({ date, time, name, menuName }) {
 
     const dateKey = date.replace(/-/g, '');
     await page.goto(
-      `https://salonboard.com/CLP/bt/schedule/salonSchedule/?pv_date=${dateKey}`,
+      `https://salonboard.com/CLP/bt/schedule/salonSchedule/?date=${dateKey}`,
       { waitUntil: 'networkidle' }
     );
     await page.waitForTimeout(1500);
@@ -276,7 +276,7 @@ async function cancelInSalonBoard({ date, time, name }) {
     // スケジュールページで該当予約ブロックを探す
     const dateKey = date.replace(/-/g, '');
     await page.goto(
-      `https://salonboard.com/CLP/bt/schedule/salonSchedule/?pv_date=${dateKey}`,
+      `https://salonboard.com/CLP/bt/schedule/salonSchedule/?date=${dateKey}`,
       { waitUntil: 'networkidle' }
     );
     await page.waitForTimeout(1500);
