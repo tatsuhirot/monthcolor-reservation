@@ -124,24 +124,23 @@ async function syncSlots() {
       console.log('✅ SalonBoard セッション再利用');
     }
 
-    // ── 各週のカレンダーをスクレイピング ────────────────────────
-    // SalonBoardは週単位表示のため、今日から1週間ごとにリクエスト
+    // ── 1日ずつ全日をスキャン ─────────────────────────────────────
+    // SalonBoardは ?date=YYYYMMDD で1日単位のデータを返すため、日ごとに取得する
     const allSlots = {};
     const now = new Date();
     const endDate = new Date(now.getFullYear(), now.getMonth() + monthCount, 0); // 最終月末
 
-    let weekStart = new Date(now);
-    let weekIndex = 0;
+    let current = new Date(now);
 
-    while (weekStart <= endDate) {
-      const dateKey = `${weekStart.getFullYear()}${String(weekStart.getMonth()+1).padStart(2,'0')}${String(weekStart.getDate()).padStart(2,'0')}`;
-      const label   = `${weekStart.getFullYear()}/${weekStart.getMonth()+1}/${weekStart.getDate()}週`;
+    while (current <= endDate) {
+      const dateKey = `${current.getFullYear()}${String(current.getMonth()+1).padStart(2,'0')}${String(current.getDate()).padStart(2,'0')}`;
+      const label   = `${current.getFullYear()}/${current.getMonth()+1}/${current.getDate()}`;
 
       await page.goto(
         `https://salonboard.com/CLP/bt/schedule/salonSchedule/?date=${dateKey}`,
-        { waitUntil: 'networkidle' }
+        { waitUntil: 'domcontentloaded' }  // networkidle より速い
       );
-      await page.waitForTimeout(1500);
+      await page.waitForTimeout(800);
 
       const html  = await page.content();
       const slots = parseEmptySlots(html);
@@ -150,13 +149,11 @@ async function syncSlots() {
       const slotCount = Object.values(slots).reduce((s, a) => s + a.length, 0);
       if (dayCount > 0) {
         Object.assign(allSlots, slots);
-        console.log(`✅ ${label}: ${dayCount}日分 / ${slotCount}枠`);
-      } else {
-        console.log(`   ${label}: 空き枠なし`);
+        console.log(`✅ ${label}: ${slotCount}枠`);
       }
+      // 空き枠なしの日はログ省略（多すぎるため）
 
-      weekStart.setDate(weekStart.getDate() + 7);
-      weekIndex++;
+      current.setDate(current.getDate() + 1);
     }
     console.log(`\n合計: ${Object.keys(allSlots).length}日分の空き枠を取得`);
 
