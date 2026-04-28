@@ -136,6 +136,37 @@ async function processQueue() {
   }
 }
 
+// ── SalonBoard ログイン共通ヘルパー ──────────────────────────────────
+async function ensureLoggedIn(page, context, dateKey) {
+  console.log('   🔐 SalonBoard にアクセス中...');
+  await page.goto('https://salonboard.com/login_sp/', { waitUntil: 'domcontentloaded', timeout: 60_000 });
+
+  const isLoggedIn = await page.$('#jsiSchedule, .scheduleArea, .sideMenuArea, .sp-menu, [class*="schedule"]');
+  if (!isLoggedIn) {
+    const loginId = process.env.SALONBOARD_LOGIN_ID;
+    const loginPw = process.env.SALONBOARD_PASSWORD;
+    if (!loginId || !loginPw) throw new Error('SALONBOARD_LOGIN_ID / SALONBOARD_PASSWORD が .env に未設定です');
+
+    await page.fill('input[name="userId"], input[name="loginId"], input[type="text"]', loginId);
+    await page.fill('input[name="password"], #password, input[type="password"]', loginPw);
+    await page.click('.loginBtnSize, button[type="submit"], input[type="submit"]');
+    await page.waitForTimeout(3000); // AJAX完了を待つ
+
+    // スケジュールページへ移動してセッションが有効か確認
+    await page.goto(
+      `https://salonboard.com/CLP/bt/schedule/salonSchedule/?date=${dateKey}`,
+      { waitUntil: 'domcontentloaded', timeout: 30_000 }
+    );
+    if (page.url().includes('/login')) {
+      await page.screenshot({ path: path.join(tmpDir, 'salonboard-login-fail-worker.png'), fullPage: true }).catch(() => null);
+      if (fs.existsSync(statePath)) fs.rmSync(statePath, { force: true });
+      throw new Error(`SalonBoard login failed`);
+    }
+    await context.storageState({ path: statePath });
+    console.log('   ✅ ログイン成功 →', page.url());
+  }
+}
+
 // ── SalonBoard 登録（server.js から移植）──────────────────────────
 async function registerInSalonBoard({ date, time, name, menuName }) {
   const headless = process.env.PLAYWRIGHT_HEADLESS !== 'false';
@@ -146,36 +177,9 @@ async function registerInSalonBoard({ date, time, name, menuName }) {
   const page = await context.newPage();
 
   try {
-    console.log('   🔐 SalonBoard にアクセス中...');
-    await page.goto('https://salonboard.com/login_sp/', { waitUntil: 'domcontentloaded', timeout: 60_000 });
-
-    const isLoggedIn = await page.$('#jsiSchedule, .scheduleArea, .sideMenuArea, .sp-menu, [class*="schedule"]');
-    if (!isLoggedIn) {
-      const loginId = process.env.SALONBOARD_LOGIN_ID;
-      const loginPw = process.env.SALONBOARD_PASSWORD;
-      if (!loginId || !loginPw) throw new Error('SALONBOARD_LOGIN_ID / SALONBOARD_PASSWORD が .env に未設定です');
-
-      await page.fill('input[name="userId"], input[name="loginId"], input[type="text"]', loginId);
-      await page.fill('input[name="password"], #password, input[type="password"]', loginPw);
-      await page.click('.loginBtnSize, button[type="submit"], input[type="submit"]');
-      await page.waitForTimeout(3000); // AJAX完了を待つ
-
-      // スケジュールページへ移動してセッションが有効か確認
-      const dateKey = date.replace(/-/g, '');
-      await page.goto(
-        `https://salonboard.com/CLP/bt/schedule/salonSchedule/?date=${dateKey}`,
-        { waitUntil: 'domcontentloaded', timeout: 30_000 }
-      );
-      if (page.url().includes('/login')) {
-        await page.screenshot({ path: path.join(tmpDir, 'salonboard-login-fail-worker.png'), fullPage: true }).catch(() => null);
-        if (fs.existsSync(statePath)) fs.rmSync(statePath, { force: true });
-        throw new Error(`SalonBoard login failed`);
-      }
-      await context.storageState({ path: statePath });
-      console.log('   ✅ ログイン成功 →', page.url());
-    }
-
     const dateKey = date.replace(/-/g, '');
+    await ensureLoggedIn(page, context, dateKey);
+
     await page.goto(
       `https://salonboard.com/CLP/bt/schedule/salonSchedule/?date=${dateKey}`,
       { waitUntil: 'networkidle' }
@@ -259,22 +263,10 @@ async function cancelInSalonBoard({ date, time, name }) {
   const page = await context.newPage();
 
   try {
-    // ログイン確認
-    await page.goto('https://salonboard.com/login_sp/', { waitUntil: 'domcontentloaded', timeout: 60_000 });
-    const isLoggedIn = await page.$('#jsiSchedule, .scheduleArea, .sideMenuArea, .sp-menu, [class*="schedule"]');
-    if (!isLoggedIn) {
-      const loginId = process.env.SALONBOARD_LOGIN_ID;
-      const loginPw = process.env.SALONBOARD_PASSWORD;
-      if (!loginId || !loginPw) throw new Error('認証情報が未設定です');
-      await page.fill('input[name="userId"], input[name="loginId"], input[type="text"]', loginId);
-      await page.fill('input[name="password"], #password, input[type="password"]', loginPw);
-      await page.click('.loginBtnSize, button[type="submit"], input[type="submit"]');
-      await page.waitForTimeout(3000);
-      await context.storageState({ path: statePath });
-    }
+    const dateKey = date.replace(/-/g, '');
+    await ensureLoggedIn(page, context, dateKey);
 
     // スケジュールページで該当予約ブロックを探す
-    const dateKey = date.replace(/-/g, '');
     await page.goto(
       `https://salonboard.com/CLP/bt/schedule/salonSchedule/?date=${dateKey}`,
       { waitUntil: 'networkidle' }
@@ -282,16 +274,21 @@ async function cancelInSalonBoard({ date, time, name }) {
     await page.waitForTimeout(1500);
 
     const timeKey = time.replace(':', '');
+    const stylistId = await resolveStaffId(page);
 
-    // 予約済みブロックのセレクター（※実機テストで要確認）
-    // SalonBoard では予約済みセルは .reserveBlock や [id^="reserve_"] などの場合が多い
+    // SalonBoard の予約済みセルは reserve_sid_fix_{date}_{time}_{staffId} 形式
+    // （empty_time_sid_fix_ の逆パターン — 調査済み）
     const reserveBlock = await page.$(
-      `[id*="${dateKey}"][id*="${timeKey}"]:not([id^="empty_"])` +
-      `, .reserveBlock[data-time="${timeKey}"]` +
-      `, td[id*="${timeKey}"] .reserveItem`
+      `[id^="reserve_sid_fix_${dateKey}_${timeKey}_${stylistId}"]` +
+      `, [id^="reserve_sid_fix_${dateKey}_${timeKey}_"]`  // stylistId が変わっていても拾う
     );
 
     if (!reserveBlock) {
+      // 全予約ブロックをダンプしてデバッグログ
+      const allReserveIds = await page.evaluate(() =>
+        Array.from(document.querySelectorAll('[id^="reserve_sid_fix_"]')).map(el => el.id)
+      );
+      console.error(`   ⚠️ 予約ブロック一覧: ${JSON.stringify(allReserveIds)}`);
       throw new Error(
         `キャンセル対象の予約ブロックが見つかりません（${date} ${time} / ${name}）。` +
         `手動でSalonBoardを確認してください。`
