@@ -1,9 +1,10 @@
 /**
- * sync_comingsoon.js — 1cs.jp (coming-soon) から今日の予約データをスクレイピング
+ * sync_comingsoon.js — 1cs.jp (coming-soon) から予約データをスクレイピング
  *
  * 使い方:
  *   node sync_comingsoon.js              # 今日の予約を取得してBlobに保存
  *   node sync_comingsoon.js --date YYYY-MM-DD  # 指定日
+ *   node sync_comingsoon.js --days 7     # 今日から7日分を連続取得
  *   node sync_comingsoon.js --preview    # Blobに保存せず結果を表示
  *
  * 環境変数:
@@ -26,11 +27,24 @@ const dateArg  = (() => {
   const idx = process.argv.indexOf('--date');
   return idx !== -1 ? process.argv[idx + 1] : null;
 })();
+const daysArg  = (() => {
+  const idx = process.argv.indexOf('--days');
+  return idx !== -1 ? parseInt(process.argv[idx + 1], 10) : 1;
+})();
 
-function getTargetDate() {
-  if (dateArg) return dateArg;
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+function toDateStr(date) {
+  return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+}
+
+function getTargetDates() {
+  if (dateArg) return [dateArg];
+  const base = new Date();
+  base.setHours(0, 0, 0, 0);
+  return Array.from({ length: daysArg }, (_, i) => {
+    const d = new Date(base);
+    d.setDate(d.getDate() + i);
+    return toDateStr(d);
+  });
 }
 
 // ── DWR レスポンスパーサー ─────────────────────────────────────────
@@ -69,6 +83,77 @@ function startTime(reserveTime) {
   return `${h.padStart(2, '0')}:${m || '00'}`;
 }
 
+// ── 1日分を取得してBlobに保存 ──────────────────────────────────────
+async function syncOneDate(page, context, targetDate) {
+  const dateKey = targetDate.replace(/-/g, '');
+  console.log(`\n📅 ${targetDate} を取得中...`);
+
+  const allDwrTexts = [];
+  const handler = async resp => {
+    if (resp.url().includes('findReserveTableDataV2')) {
+      try { allDwrTexts.push(await resp.text()); } catch {}
+    }
+  };
+  page.on('response', handler);
+
+  const SERVICE_URL = `https://1cs.jp/ucs/reserveService.do?StartupDate=${dateKey}`;
+  await page.goto(SERVICE_URL, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+  await page.waitForTimeout(10_000);
+  page.off('response', handler);
+
+  console.log(`  📡 DWRレスポンス: ${allDwrTexts.length}件`);
+
+  const allReservations = [];
+  const seenIds = new Set();
+  for (const dwr of allDwrTexts) {
+    for (const item of extractReservations(dwr)) {
+      if (!seenIds.has(item.id)) {
+        seenIds.add(item.id);
+        allReservations.push({
+          id:        item.id,
+          time:      startTime(item.reserveTime),
+          timeRange: item.reserveTime,
+          name:      item.customerName || '不明',
+          nameKana:  item.customerNameKana || '',
+          menu:      item.name || '',
+          phone:     item.customerPhoneNo2 || item.customerPhoneNo || '',
+          email:     item.customerMailAddress || '',
+          visitCount: item.customerReservationCount || 0,
+          note:      item.userComment || '',
+          source:    'comingsoon',
+        });
+      }
+    }
+  }
+  allReservations.sort((a, b) => a.time.localeCompare(b.time));
+  console.log(`  📋 ${allReservations.length}件`);
+
+  const payload = JSON.stringify({
+    updatedAt: new Date().toISOString(),
+    date: targetDate,
+    reservations: allReservations,
+  }, null, 2);
+
+  if (!PREVIEW) {
+    // 日付別Blob (comingsoon-2026-05-01.json)
+    await put(`comingsoon-${targetDate}.json`, payload, {
+      access: 'public', addRandomSuffix: false, allowOverwrite: true,
+      token: process.env.BLOB_READ_WRITE_TOKEN,
+    });
+    // 今日分は comingsoon-today.json にも保存（後方互換）
+    const today = toDateStr(new Date());
+    if (targetDate === today) {
+      await put('comingsoon-today.json', payload, {
+        access: 'public', addRandomSuffix: false, allowOverwrite: true,
+        token: process.env.BLOB_READ_WRITE_TOKEN,
+      });
+    }
+    console.log(`  ✅ Blobに保存: comingsoon-${targetDate}.json`);
+  }
+
+  return allReservations;
+}
+
 // ── メイン ─────────────────────────────────────────────────────────
 async function syncComingSoon() {
   const loginId = process.env.COMINGSOON_LOGIN_ID;
@@ -77,27 +162,14 @@ async function syncComingSoon() {
     throw new Error('COMINGSOON_LOGIN_ID / COMINGSOON_PASSWORD が .env に未設定です');
   }
 
-  const targetDate = getTargetDate();
-  // URL日付形式: YYYYMMDD
-  const dateKey = targetDate.replace(/-/g, '');
-  console.log(`📅 対象日: ${targetDate}`);
+  const targetDates = getTargetDates();
+  console.log(`📅 取得対象: ${targetDates.join(', ')}`);
 
   const browser = await firefox.launch({ headless: true });
   const context = fs.existsSync(statePath)
     ? await browser.newContext({ storageState: statePath })
     : await browser.newContext();
   const page = await context.newPage();
-
-  // 全ての findReserveTableDataV2 レスポンスを収集
-  const allDwrTexts = [];
-  page.on('response', async resp => {
-    if (resp.url().includes('findReserveTableDataV2')) {
-      try {
-        const text = await resp.text();
-        allDwrTexts.push(text);
-      } catch {}
-    }
-  });
 
   try {
     // ── ログイン ────────────────────────────────────────────────────
@@ -123,76 +195,16 @@ async function syncComingSoon() {
       console.log('✅ セッション再利用');
     }
 
-    // ── 予約管理ページへ移動（DWR が発火される） ───────────────────
-    const SERVICE_URL = `https://1cs.jp/ucs/reserveService.do?StartupDate=${dateKey}`;
-    console.log(`🌐 予約管理ページへ: ${SERVICE_URL}`);
-    await page.goto(SERVICE_URL, { waitUntil: 'domcontentloaded', timeout: 30_000 });
-
-    // DWR が複数回呼ばれるため十分待つ
-    console.log('⏳ DWR データ読み込み待機 (10秒)...');
-    await page.waitForTimeout(10_000);
-
-    console.log(`📡 DWR レスポンス受信数: ${allDwrTexts.length}`);
-
-    // ── 全DWRレスポンスをパース・結合 ──────────────────────────────
-    const allReservations = [];
-    const seenIds = new Set();
-
-    for (const dwr of allDwrTexts) {
-      const items = extractReservations(dwr);
-      for (const item of items) {
-        if (!seenIds.has(item.id)) {
-          seenIds.add(item.id);
-          allReservations.push({
-            id:        item.id,
-            time:      startTime(item.reserveTime),
-            timeRange: item.reserveTime,
-            name:      item.customerName || '不明',
-            nameKana:  item.customerNameKana || '',
-            menu:      item.name || '',
-            phone:     item.customerPhoneNo2 || item.customerPhoneNo || '',
-            email:     item.customerMailAddress || '',
-            visitCount: item.customerReservationCount || 0,
-            note:      item.userComment || '',
-            source:    'comingsoon',
-          });
-        }
-      }
-    }
-
-    // 時刻順にソート
-    allReservations.sort((a, b) => a.time.localeCompare(b.time));
-
-    console.log(`\n📋 今日の予約: ${allReservations.length}件`);
-    allReservations.forEach((r, i) => {
-      console.log(`  [${i+1}] ${r.timeRange} | ${r.name} | ${r.menu}`);
-    });
-
-    if (allReservations.length === 0) {
-      console.warn('\n⚠️  予約0件: 本日予約なし or DWRが十分に読み込まれませんでした');
-    }
-
-    // ── Vercel Blob に保存 ────────────────────────────────────────
-    if (!PREVIEW) {
-      const payload = JSON.stringify({
-        updatedAt: new Date().toISOString(),
-        date: targetDate,
-        reservations: allReservations,
-      }, null, 2);
-
-      await put('comingsoon-today.json', payload, {
-        access: 'public',
-        addRandomSuffix: false,
-        allowOverwrite: true,
-        token: process.env.BLOB_READ_WRITE_TOKEN,
-      });
-      console.log(`\n✅ comingsoon-today.json を Blob に保存 (${allReservations.length}件)`);
-    } else {
-      console.log('\n[preview mode — Blob保存スキップ]');
+    // ── 日付ごとに取得 ──────────────────────────────────────────────
+    for (const date of targetDates) {
+      await syncOneDate(page, context, date);
+      if (targetDates.length > 1) await page.waitForTimeout(2000); // レート制限対策
     }
 
     await context.storageState({ path: statePath });
-    return allReservations;
+
+    if (PREVIEW) console.log('\n[preview mode — Blob保存スキップ]');
+    console.log(`\n✅ 完了 (${targetDates.length}日分)`);
 
   } finally {
     await browser.close();

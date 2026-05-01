@@ -496,8 +496,14 @@ body { font-family: "Hiragino Sans", Meiryo, sans-serif; background: #f0f2f0; co
         <!-- coming-soon 今日の予約 -->
         <div id="csSection" class="sb-card">
           <div class="sb-card__head">
-            <span class="sb-card__title">👤 coming-soon 予約（当日）</span>
-            <button class="sb-refresh-btn" onclick="loadComingsoonReservations()">🔄 更新</button>
+            <span class="sb-card__title">👤 coming-soon 予約</span>
+            <div style="display:flex;align-items:center;gap:6px">
+              <button class="sb-refresh-btn" onclick="csShiftDay(-1)">◀</button>
+              <span id="csDateLabel" style="font-size:13px;font-weight:600;min-width:90px;text-align:center"></span>
+              <button class="sb-refresh-btn" onclick="csShiftDay(1)">▶</button>
+              <button class="sb-refresh-btn" onclick="csGoToday()">今日</button>
+              <button class="sb-refresh-btn" onclick="loadComingsoonReservations()">🔄</button>
+            </div>
           </div>
           <div class="sb-card__body">
             <div id="csContent"><div class="sb-empty">読み込み中...</div></div>
@@ -1064,25 +1070,50 @@ async function syncSlots() {
   finally { btn.disabled = false; btn.textContent = '🔄 枠同期'; }
 }
 
-/* ══ coming-soon 今日の予約 ══ */
+/* ══ coming-soon 予約（日付ナビ付き） ══ */
+let csViewDate = new Date();
+csViewDate.setHours(0,0,0,0);
+
+function csFmtDate(d) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function csShiftDay(n) {
+  csViewDate.setDate(csViewDate.getDate() + n);
+  loadComingsoonReservations();
+}
+function csGoToday() {
+  csViewDate = new Date();
+  csViewDate.setHours(0,0,0,0);
+  loadComingsoonReservations();
+}
+
 async function loadComingsoonReservations() {
   const content = document.getElementById('csContent');
   const meta    = document.getElementById('csMeta');
+  const label   = document.getElementById('csDateLabel');
   content.innerHTML = '<div class="sb-empty">読み込み中...</div>';
   meta.textContent  = '';
 
+  const dateStr = csFmtDate(csViewDate);
+  const dow = ['日','月','火','水','木','金','土'][csViewDate.getDay()];
+  label.textContent = `${csViewDate.getMonth()+1}/${csViewDate.getDate()}(${dow})`;
+
   try {
-    const res = await fetch('/api/comingsoon-today', {
+    const res = await fetch(`/api/comingsoon-date?date=${dateStr}`, {
       headers: { Authorization: `Bearer ${password}` },
     });
     const data = await res.json();
     const list = data.reservations || [];
 
-    document.getElementById('csCountNum').textContent = list.length;
-    document.getElementById('csCountDate').textContent = data.date || '';
+    const today = csFmtDate(new Date());
+    if (dateStr === today) {
+      document.getElementById('csCountNum').textContent = list.length;
+      document.getElementById('csCountDate').textContent = dateStr;
+    }
 
     if (list.length === 0) {
-      content.innerHTML = '<div class="sb-empty">予約なし（または未同期）<br><small>npm run sync:cs を実行してください</small></div>';
+      const msg = data.message || '予約なし（または未同期）';
+      content.innerHTML = `<div class="sb-empty">${msg}<br><small>GitHub Actionsが毎朝7日分を自動同期します</small></div>`;
     } else {
       content.innerHTML = `
         <table class="sb-table">

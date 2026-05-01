@@ -12,6 +12,7 @@
     "sync:slots": "node sync_slots.js",
     "sync:slots:3months": "node sync_slots.js --months 3",
     "sync:cs": "node sync_comingsoon.js",
+    "sync:cs:week": "node sync_comingsoon.js --days 7",
     "sync:cs:preview": "node sync_comingsoon.js --preview",
     "setup:tasks": "powershell -ExecutionPolicy Bypass -File setup/setup_tasks.ps1",
     "login:peatix": "node scripts/login-peatix.js"

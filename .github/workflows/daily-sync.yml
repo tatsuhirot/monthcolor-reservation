@@ -1,0 +1,54 @@
+name: Daily Reservation Sync
+
+on:
+  schedule:
+    # 毎日 09:00 JST (00:00 UTC) に実行
+    - cron: '0 0 * * *'
+    # 追加: 毎日 13:00 JST (04:00 UTC) に2回目同期
+    - cron: '0 4 * * *'
+  workflow_dispatch:   # 手動実行ボタン（GitHub UI から即時実行可能）
+    inputs:
+      date:
+        description: '取得日 (YYYY-MM-DD)。空欄なら今日'
+        required: false
+        default: ''
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright (Firefox only)
+        run: npx playwright install firefox --with-deps
+
+      - name: Sync coming-soon reservations
+        env:
+          COMINGSOON_LOGIN_ID:   ${{ secrets.COMINGSOON_LOGIN_ID }}
+          COMINGSOON_PASSWORD:   ${{ secrets.COMINGSOON_PASSWORD }}
+          BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
+        run: |
+          if [ -n "${{ github.event.inputs.date }}" ]; then
+            node sync_comingsoon.js --date "${{ github.event.inputs.date }}"
+          else
+            node sync_comingsoon.js --days 7
+          fi
+
+      - name: Sync SalonBoard slots
+        env:
+          SALONBOARD_LOGIN_ID:   ${{ secrets.SALONBOARD_LOGIN_ID }}
+          SALONBOARD_PASSWORD:   ${{ secrets.SALONBOARD_PASSWORD }}
+          BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
+        run: node sync_slots.js
