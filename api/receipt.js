@@ -229,7 +229,7 @@ module.exports = async function handler(req, res) {
   // 管理パスワード認証（URLパラメータも許可 — 印刷タブでHeaderが使えないため）
   const authHeader = req.headers['authorization'] || '';
   const authQuery  = req.query.token || '';
-  const adminPw    = process.env.ADMIN_PASSWORD || '';
+  const adminPw    = process.env.COMINGSOON_PASSWORD || process.env.ADMIN_PASSWORD || '';
   const authed =
     authHeader === `Bearer ${adminPw}` ||
     authQuery  === adminPw;

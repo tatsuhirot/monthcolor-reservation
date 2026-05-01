@@ -17,7 +17,7 @@ module.exports = async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
   const auth = (req.headers['authorization'] || '').replace('Bearer ', '').trim();
-  if (auth !== (process.env.ADMIN_PASSWORD || '').trim()) {
+  if (auth !== (process.env.COMINGSOON_PASSWORD || process.env.ADMIN_PASSWORD || '').trim()) {
     return res.status(401).json({ error: 'パスワードが違います' });
   }
 

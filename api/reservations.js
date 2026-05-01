@@ -35,7 +35,7 @@ module.exports = async function handler(req, res) {
 function checkAuth(req) {
   const auth = req.headers['authorization'] || '';
   const token = auth.replace('Bearer ', '').trim();
-  return token === (process.env.ADMIN_PASSWORD || '').trim();
+  return token === (process.env.COMINGSOON_PASSWORD || process.env.ADMIN_PASSWORD || '').trim();
 }
 
 async function loadQueue() {
