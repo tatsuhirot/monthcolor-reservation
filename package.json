@@ -11,6 +11,8 @@
     "sync:dry": "node sync_from_email.js --dry-run",
     "sync:slots": "node sync_slots.js",
     "sync:slots:3months": "node sync_slots.js --months 3",
+    "sync:cs": "node sync_comingsoon.js",
+    "sync:cs:preview": "node sync_comingsoon.js --preview",
     "setup:tasks": "powershell -ExecutionPolicy Bypass -File setup/setup_tasks.ps1",
     "login:peatix": "node scripts/login-peatix.js"
   },

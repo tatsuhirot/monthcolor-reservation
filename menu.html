@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>メニュー・料金表 — MONTH COLOR</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 14px; -webkit-text-size-adjust: 100%; }
+body {
+  font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+  background: #f5f5f5; color: #333; min-height: 100vh;
+}
+a { color: inherit; text-decoration: none; }
+
+.app {
+  max-width: 480px; margin: 0 auto; background: #fff;
+  min-height: 100vh; box-shadow: 0 0 20px rgba(0,0,0,.08);
+  display: flex; flex-direction: column;
+}
+
+/* ── ヘッダー ── */
+.page-header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 14px; border-bottom: 1px solid #eee;
+  background: #fff; position: sticky; top: 0; z-index: 10;
+}
+.back-btn {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: #f5f5f5; display: flex; align-items: center;
+  justify-content: center; font-size: 16px; flex-shrink: 0;
+}
+.page-title { font-size: 16px; font-weight: 700; color: #1a1a1a; }
+
+/* ── タブ ── */
+.tab-bar {
+  display: flex; overflow-x: auto; gap: 0;
+  border-bottom: 1px solid #eee; background: #fff;
+  scrollbar-width: none;
+}
+.tab-bar::-webkit-scrollbar { display: none; }
+.tab-btn {
+  flex-shrink: 0; padding: 10px 16px;
+  font-size: 12px; font-weight: 600; color: #888;
+  border-bottom: 2px solid transparent;
+  transition: color .15s, border-color .15s; white-space: nowrap;
+  background: none; border-top: none; border-left: none; border-right: none;
+  cursor: pointer;
+}
+.tab-btn.active { color: #e60; border-bottom-color: #e60; }
+
+/* ── カテゴリーヘッダー ── */
+.cat-header {
+  display: flex; align-items: center; gap: 12px;
+  padding: 16px 14px 12px;
+}
+.cat-icon {
+  width: 44px; height: 44px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px; flex-shrink: 0;
+}
+.cat-icon--hair  { background: linear-gradient(135deg, #ffe8cc, #ffcca0); }
+.cat-icon--white { background: linear-gradient(135deg, #e8f4ff, #c8e8ff); }
+.cat-icon--lash  { background: linear-gradient(135deg, #ffe8f0, #ffc8dc); }
+.cat-icon--spa   { background: linear-gradient(135deg, #e8ffe8, #c0f0c0); }
+.cat-title { font-size: 16px; font-weight: 700; color: #1a1a1a; }
+.cat-note  { font-size: 11px; color: #888; margin-top: 2px; }
+
+/* ── メニューアイテム ── */
+.menu-section { margin-bottom: 24px; }
+.menu-item {
+  background: #f8f8f8;
+  border-top: 1px solid #e8e8e8;
+  border-bottom: 1px solid #e8e8e8;
+  margin-bottom: 6px;
+  overflow: hidden;
+}
+.menu-item__main {
+  display: flex; align-items: center;
+  padding: 14px;  gap: 10px;
+}
+.menu-item__info { flex: 1; min-width: 0; }
+.menu-item__name { font-size: 14px; font-weight: 700; color: #1a1a1a; margin-bottom: 3px; }
+.menu-item__meta { font-size: 11px; color: #888; }
+.menu-item__right { text-align: right; flex-shrink: 0; }
+.menu-item__price { font-size: 16px; font-weight: 700; color: #1a1a1a; }
+.menu-item__time  { font-size: 11px; color: #888; margin-top: 2px; }
+.menu-item__desc  { padding: 0 14px 12px; font-size: 12px; color: #666; line-height: 1.6; }
+
+/* ── 予約ボタン（アイテム内） ── */
+.menu-item__reserve {
+  margin: 0 14px 12px;
+  display: flex; align-items: center; justify-content: center;
+  height: 40px; background: #e60; color: #fff;
+  font-size: 13px; font-weight: 700; border-radius: 6px;
+  gap: 6px; transition: background .15s;
+}
+.menu-item__reserve:active { background: #c55200; }
+
+/* ── 注意書き ── */
+.note-box {
+  margin: 0 14px 20px;
+  padding: 12px 14px;
+  background: #fff8f0;
+  border-left: 3px solid #e60;
+  border-radius: 0 6px 6px 0;
+  font-size: 12px; color: #666; line-height: 1.6;
+}
+
+/* ── 固定フッター ── */
+.reserve-bar {
+  position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
+  width: 100%; max-width: 480px;
+  padding: 10px 14px 20px;
+  background: linear-gradient(transparent, #fff 30%);
+  z-index: 20;
+}
+.reserve-btn {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%; height: 50px;
+  background: #e60; color: #fff;
+  font-size: 16px; font-weight: 700; border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(238,102,0,.4);
+  transition: background .15s;
+}
+.reserve-btn:active { background: #c55200; }
+.reserve-btn::before { content: '📅'; font-size: 18px; }
+
+.spacer { height: 90px; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ヘッダー -->
+  <div class="page-header">
+    <a class="back-btn" href="/">‹</a>
+    <div class="page-title">メニュー・料金表</div>
+  </div>
+
+  <!-- タブ -->
+  <div class="tab-bar">
+    <button class="tab-btn active" onclick="scrollTo('hair', this)">💇 ヘアカラー</button>
+    <button class="tab-btn" onclick="scrollTo('white', this)">✨ ホワイトニング</button>
+    <button class="tab-btn" onclick="scrollTo('lash', this)">👁 まつ毛パーマ</button>
+    <button class="tab-btn" onclick="scrollTo('spa', this)">🧖 ヘッドスパ</button>
+  </div>
+
+  <!-- ヘアカラー -->
+  <div class="menu-section" id="hair">
+    <div class="cat-header">
+      <div class="cat-icon cat-icon--hair">💇</div>
+      <div>
+        <div class="cat-title">ヘアカラー</div>
+        <div class="cat-note">美容師の指名はできません</div>
+      </div>
+    </div>
+
+    <div class="menu-item">
+      <div class="menu-item__main">
+        <div class="menu-item__info">
+          <div class="menu-item__name">リタッチカラー</div>
+          <div class="menu-item__meta">シャンプー・コンディショナー込み</div>
+        </div>
+        <div class="menu-item__right">
+          <div class="menu-item__price">¥4,400〜</div>
+          <div class="menu-item__time">60〜70分</div>
+        </div>
+      </div>
+      <div class="menu-item__desc">頭皮から3cmまでのリタッチ。シャンプー・コンディショナー込み。</div>
+      <a class="menu-item__reserve" href="/reserve">このメニューで予約 ›</a>
+    </div>
+
+    <div class="menu-item">
+      <div class="menu-item__main">
+        <div class="menu-item__info">
+          <div class="menu-item__name">フルカラー</div>
+          <div class="menu-item__meta">全体染め</div>
+        </div>
+        <div class="menu-item__right">
+          <div class="menu-item__price">¥6,600〜</div>
+          <div class="menu-item__time">90分</div>
+        </div>
+      </div>
+      <div class="menu-item__desc">全体染め。根元から毛先まで均一に染めます。</div>
+      <a class="menu-item__reserve" href="/reserve">このメニューで予約 ›</a>
+    </div>
+
+    <div class="menu-item">
+      <div class="menu-item__main">
+        <div class="menu-item__info">
+          <div class="menu-item__name">カラー＋トリートメント</div>
+          <div class="menu-item__meta">ダメージケア付き</div>
+        </div>
+        <div class="menu-item__right">
+          <div class="menu-item__price">¥8,800〜</div>
+          <div class="menu-item__time">90分</div>
+        </div>
+      </div>
+      <div class="menu-item__desc">カラー後の傷みをケアする特別トリートメント付き。</div>
+      <a class="menu-item__reserve" href="/reserve">このメニューで予約 ›</a>
+    </div>
+
+    <div class="menu-item">
+      <div class="menu-item__main">
+        <div class="menu-item__info">
+          <div class="menu-item__name">ハイライト</div>
+          <div class="menu-item__meta">立体感・透明感</div>
+        </div>
+        <div class="menu-item__right">
+          <div class="menu-item__price">¥7,700〜</div>
+          <div class="menu-item__time">120分</div>
+        </div>
+      </div>
+      <div class="menu-item__desc">部分的にハイライトを入れ、立体感と透明感を演出。</div>
+      <a class="menu-item__reserve" href="/reserve">このメニューで予約 ›</a>
+    </div>
+
+    <div class="note-box">
+      ※ 料金は税込表示です。髪の長さ・状態により変動する場合があります。
+    </div>
+  </div>
+
+  <!-- セルフホワイトニング -->
+  <div class="menu-section" id="white">
+    <div class="cat-header">
+      <div class="cat-icon cat-icon--white">✨</div>
+      <div>
+        <div class="cat-title">セルフホワイトニング</div>
+        <div class="cat-note">薬剤を使わない安全なケア</div>
+      </div>
+    </div>
+
+    <div class="menu-item">
+      <div class="menu-item__main">
+        <div class="menu-item__info">
+          <div class="menu-item__name">セルフホワイトニング 30分</div>
+          <div class="menu-item__meta">はじめての方におすすめ</div>
+        </div>
+        <div class="menu-item__right">
+          <div class="menu-item__price">¥3,300</div>
+          <div class="menu-item__time">30分</div>
+        </div>
+      </div>
+      <div class="menu-item__desc">薬剤を使わず安全に。自宅ケアの延長線上で行えます。</div>
+      <a class="menu-item__reserve" href="/reserve">このメニューで予約 ›</a>
+    </div>
+
+    <div class="menu-item">
+      <div class="menu-item__main">
+        <div class="menu-item__info">
+          <div class="menu-item__name">セルフホワイトニング 60分</div>
+          <div class="menu-item__meta">じっくりケアしたい方に</div>
+        </div>
+        <div class="menu-item__right">
+          <div class="menu-item__price">¥5,500</div>
+          <div class="menu-item__time">60分</div>
+        </div>
+      </div>
+      <div class="menu-item__desc">じっくりケアしたい方におすすめのコース。</div>
+      <a class="menu-item__reserve" href="/reserve">このメニューで予約 ›</a>
+    </div>
+
+    <div class="note-box">
+      ※ セルフホワイトニングは過酸化水素不使用のため、歯科医師法に抵触しません。
+    </div>
+  </div>
+
+  <!-- まつ毛パーマ -->
+  <div class="menu-section" id="lash">
+    <div class="cat-header">
+      <div class="cat-icon cat-icon--lash">👁</div>
+      <div>
+        <div class="cat-title">まつ毛パーマ</div>
+        <div class="cat-note">自まつ毛を活かしたナチュラルケア</div>
+      </div>
+    </div>
+
+    <div class="menu-item">
+      <div class="menu-item__main">
+        <div class="menu-item__info">
+          <div class="menu-item__name">まつ毛パーマ（ベーシック）</div>
+          <div class="menu-item__meta">ナチュラルカール</div>
+        </div>
+        <div class="menu-item__right">
+          <div class="menu-item__price">¥5,500</div>
+          <div class="menu-item__time">60分</div>
+        </div>
+      </div>
+      <div class="menu-item__desc">自まつ毛を自然にカールアップ。</div>
+      <a class="menu-item__reserve" href="/reserve">このメニューで予約 ›</a>
+    </div>
+
+    <div class="menu-item">
+      <div class="menu-item__main">
+        <div class="menu-item__info">
+          <div class="menu-item__name">まつ毛パーマ＋リフトアップ</div>
+          <div class="menu-item__meta">より際立つ目元に</div>
+        </div>
+        <div class="menu-item__right">
+          <div class="menu-item__price">¥7,700</div>
+          <div class="menu-item__time">75分</div>
+        </div>
+      </div>
+      <div class="menu-item__desc">より際立つ目元に仕上げるリフトアップ付き。</div>
+      <a class="menu-item__reserve" href="/reserve">このメニューで予約 ›</a>
+    </div>
+  </div>
+
+  <!-- ドライヘッドスパ -->
+  <div class="menu-section" id="spa">
+    <div class="cat-header">
+      <div class="cat-icon cat-icon--spa">🧖</div>
+      <div>
+        <div class="cat-title">ドライヘッドスパ</div>
+        <div class="cat-note">頭皮・肩こりをほぐすリラクゼーション</div>
+      </div>
+    </div>
+
+    <div class="menu-item">
+      <div class="menu-item__main">
+        <div class="menu-item__info">
+          <div class="menu-item__name">ドライヘッドスパ 30分</div>
+          <div class="menu-item__meta">短時間リフレッシュ</div>
+        </div>
+        <div class="menu-item__right">
+          <div class="menu-item__price">¥3,300</div>
+          <div class="menu-item__time">30分</div>
+        </div>
+      </div>
+      <div class="menu-item__desc">頭皮と首・肩のこりをほぐします。</div>
+      <a class="menu-item__reserve" href="/reserve">このメニューで予約 ›</a>
+    </div>
+
+    <div class="menu-item">
+      <div class="menu-item__main">
+        <div class="menu-item__info">
+          <div class="menu-item__name">ドライヘッドスパ 60分</div>
+          <div class="menu-item__meta">全身リラックスコース</div>
+        </div>
+        <div class="menu-item__right">
+          <div class="menu-item__price">¥5,500</div>
+          <div class="menu-item__time">60分</div>
+        </div>
+      </div>
+      <div class="menu-item__desc">全身リラックスできる60分コース。</div>
+      <a class="menu-item__reserve" href="/reserve">このメニューで予約 ›</a>
+    </div>
+
+    <div class="menu-item">
+      <div class="menu-item__main">
+        <div class="menu-item__info">
+          <div class="menu-item__name">ドライヘッドスパ 90分</div>
+          <div class="menu-item__meta">プレミアムコース</div>
+        </div>
+        <div class="menu-item__right">
+          <div class="menu-item__price">¥7,700</div>
+          <div class="menu-item__time">90分</div>
+        </div>
+      </div>
+      <div class="menu-item__desc">深部まで届くプレミアムコース。</div>
+      <a class="menu-item__reserve" href="/reserve">このメニューで予約 ›</a>
+    </div>
+  </div>
+
+  <div class="spacer"></div>
+
+  <!-- 固定予約ボタン -->
+  <div class="reserve-bar">
+    <a class="reserve-btn" href="/reserve">ネット予約はこちら</a>
+  </div>
+
+</div>
+
+<script>
+function scrollTo(id, btn) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById(id).scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// スクロール位置でタブを自動切り替え
+const sections = ['hair','white','lash','spa'];
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      const idx = sections.indexOf(e.target.id);
+      if (idx >= 0) {
+        document.querySelectorAll('.tab-btn').forEach((b,i) => b.classList.toggle('active', i === idx));
+      }
+    }
+  });
+}, { rootMargin: '-40% 0px -50% 0px' });
+sections.forEach(id => { const el = document.getElementById(id); if (el) observer.observe(el); });
+</script>
+</body>
+</html>

@@ -37,6 +37,59 @@ if (fs.existsSync(lockPath)) {
 }
 
 const SLOTS_KEY = 'slots-data.json';
+const TODAY_RES_KEY = 'today-reservations.json';
+
+// ── ヘルパー（parse_calendar.js と共通） ─────────────────────────
+function extractSpan(block, className) {
+  const re = new RegExp(`class="${className}[^"]*"[^>]*>([^<]*)<`);
+  const m = block.match(re);
+  return m ? m[1].trim() : '';
+}
+function extractCustomer(block) {
+  const m = block.match(/class="[^"]*reserveItemCustomer[^"]*">([^<]+)</);
+  return m ? m[1].trim() : '不明';
+}
+function fmtDate8(raw) {
+  if (!raw || raw.length !== 8) return raw || '';
+  return `${raw.slice(0,4)}-${raw.slice(4,6)}-${raw.slice(6,8)}`;
+}
+function fmtTime4(raw) {
+  if (!raw || raw.length !== 4) return raw || '';
+  return `${raw.slice(0,2)}:${raw.slice(2,4)}`;
+}
+
+// スケジュール画面から stylistId→メニュー名 マッピングを抽出
+function parseStylistMap(html) {
+  const map = {};
+  const re = /id="stylist_(T\d+|0+)"[\s\S]*?class="name[^"]*"[^>]*>(?:<[^>]+>)*([^<]+)/g;
+  let m;
+  while ((m = re.exec(html)) !== null) {
+    map[m[1]] = m[2].trim().replace(/\s+/g, ' ');
+  }
+  return map;
+}
+
+// SalonBoard スケジュール画面から予約済みブロックを抽出
+function parseReservations(html, stylistMap) {
+  const reservations = [];
+  const re = /id="(reserve_item_\w+)"([\s\S]*?)(?=id="reserve_item_|id="empty_time_|$)/g;
+  let m;
+  while ((m = re.exec(html)) !== null) {
+    const block = m[2];
+    const hpbId     = extractSpan(block, 'panel_reserve_id');
+    const rawDate   = extractSpan(block, 'panel_reserve_date');
+    const rawStart  = extractSpan(block, 'panel_reserve_start');
+    const stylistId = extractSpan(block, 'panel_reserve_stylistId');
+    if (!hpbId) continue;
+    reservations.push({
+      hpbId,
+      date:     fmtDate8(rawDate),
+      time:     fmtTime4(rawStart),
+      menuName: (stylistMap && stylistMap[stylistId]) || stylistId,
+    });
+  }
+  return reservations.sort((a, b) => a.time.localeCompare(b.time));
+}
 
 // parse_calendar.js と同じ正規表現で空き枠を抽出
 function parseEmptySlots(html) {
@@ -128,9 +181,11 @@ async function syncSlots() {
     // SalonBoardは ?date=YYYYMMDD で1日単位のデータを返すため、日ごとに取得する
     const allSlots = {};
     const now = new Date();
+    const todayKey = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`;
     const endDate = new Date(now.getFullYear(), now.getMonth() + monthCount, 0); // 最終月末
 
     let current = new Date(now);
+    let todayReservations = [];
 
     while (current <= endDate) {
       const dateKey = `${current.getFullYear()}${String(current.getMonth()+1).padStart(2,'0')}${String(current.getDate()).padStart(2,'0')}`;
@@ -144,6 +199,14 @@ async function syncSlots() {
 
       const html  = await page.content();
       const slots = parseEmptySlots(html);
+
+      // 今日のページだけ予約済みブロックも取得
+      if (dateKey === todayKey) {
+        const stylistMap = parseStylistMap(html);
+        console.log(`🗂  メニューマップ: ${JSON.stringify(stylistMap)}`);
+        todayReservations = parseReservations(html, stylistMap);
+        console.log(`📋 今日の予約: ${todayReservations.length}件`);
+      }
 
       const dayCount  = Object.keys(slots).length;
       const slotCount = Object.values(slots).reduce((s, a) => s + a.length, 0);
@@ -171,6 +234,20 @@ async function syncSlots() {
     const totalDays  = Object.keys(allSlots).length;
     const totalSlots = Object.values(allSlots).reduce((s, a) => s + a.length, 0);
     console.log(`\n✅ slots-data.json をBlobに保存 (${totalDays}日分 / ${totalSlots}枠)`);
+
+    // ── 今日の予約を Blob に保存 ────────────────────────────────
+    const todayPayload = JSON.stringify({
+      updatedAt: new Date().toISOString(),
+      date: `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`,
+      reservations: todayReservations,
+    }, null, 2);
+    await put(TODAY_RES_KEY, todayPayload, {
+      access: 'public',
+      addRandomSuffix: false,
+      allowOverwrite: true,
+      token: process.env.BLOB_READ_WRITE_TOKEN,
+    });
+    console.log(`✅ today-reservations.json をBlobに保存 (${todayReservations.length}件)`);
 
   } finally {
     await browser.close();

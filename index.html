@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>MONTH COLOR — 渋谷・恵比寿のヘアサロン</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 14px; -webkit-text-size-adjust: 100%; }
+body {
+  font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+  background: #f5f5f5;
+  color: #333;
+  min-height: 100vh;
+}
+a { color: inherit; text-decoration: none; }
+
+.app {
+  max-width: 480px;
+  margin: 0 auto;
+  background: #fff;
+  min-height: 100vh;
+  box-shadow: 0 0 20px rgba(0,0,0,.08);
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── ヘロー ── */
+.hero {
+  position: relative;
+  height: 240px;
+  background: linear-gradient(160deg, #1a1a1a 0%, #2c2c2c 50%, #3a3020 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 30% 60%, rgba(210,160,100,.25) 0%, transparent 55%),
+    radial-gradient(ellipse at 75% 30%, rgba(238,102,0,.12) 0%, transparent 50%);
+}
+.hero__logo {
+  width: 64px; height: 64px;
+  border-radius: 50%;
+  background: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 8px; font-weight: 700; letter-spacing: .5px;
+  color: #1a1a1a; text-align: center; line-height: 1.3;
+  margin-bottom: 12px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.3);
+  position: relative; z-index: 1;
+}
+.hero__title {
+  font-size: 24px; font-weight: 700; letter-spacing: 3px;
+  color: #fff; position: relative; z-index: 1;
+}
+.hero__sub {
+  font-size: 11px; color: rgba(255,255,255,.6);
+  letter-spacing: 2px; margin-top: 6px; position: relative; z-index: 1;
+}
+
+/* ── ナビ ── */
+.nav {
+  display: flex;
+  border-bottom: 1px solid #e8e8e8;
+  background: #fff;
+  position: sticky; top: 0; z-index: 10;
+}
+.nav__item {
+  flex: 1; text-align: center;
+  padding: 12px 4px;
+  font-size: 12px; font-weight: 600; color: #555;
+  border-bottom: 2px solid transparent;
+  transition: color .15s, border-color .15s;
+}
+.nav__item.active, .nav__item:hover { color: #e60; border-bottom-color: #e60; }
+
+/* ── セクション共通 ── */
+.section { padding: 20px 14px; border-bottom: 8px solid #f5f5f5; }
+.section__title {
+  font-size: 13px; font-weight: 700; color: #888;
+  letter-spacing: 1px; text-transform: uppercase;
+  margin-bottom: 14px;
+  display: flex; align-items: center; gap: 8px;
+}
+.section__title::after {
+  content: ''; flex: 1; height: 1px; background: #eee;
+}
+
+/* ── サービスカード ── */
+.service-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.service-card {
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid #eee;
+  display: flex; flex-direction: column;
+  transition: box-shadow .15s;
+}
+.service-card:active { box-shadow: 0 2px 12px rgba(0,0,0,.1); }
+.service-card__thumb {
+  height: 90px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 36px;
+}
+.service-card__thumb--hair  { background: linear-gradient(135deg, #ffe8cc, #ffcca0); }
+.service-card__thumb--white { background: linear-gradient(135deg, #e8f4ff, #c8e8ff); }
+.service-card__thumb--lash  { background: linear-gradient(135deg, #ffe8f0, #ffc8dc); }
+.service-card__thumb--spa   { background: linear-gradient(135deg, #e8ffe8, #c0f0c0); }
+.service-card__body { padding: 10px; background: #fff; flex: 1; }
+.service-card__name { font-size: 13px; font-weight: 700; color: #1a1a1a; margin-bottom: 3px; }
+.service-card__price { font-size: 11px; color: #e60; font-weight: 600; }
+.service-card__link {
+  display: block; text-align: center; padding: 8px;
+  background: #f8f8f8; font-size: 12px; color: #555;
+  border-top: 1px solid #eee;
+}
+
+/* ── お知らせ ── */
+.news-item {
+  display: flex; gap: 12px; align-items: flex-start;
+  padding: 10px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+.news-item:last-child { border-bottom: none; }
+.news-date { font-size: 11px; color: #aaa; white-space: nowrap; padding-top: 2px; }
+.news-badge {
+  font-size: 10px; padding: 2px 6px; border-radius: 3px;
+  background: #fff3e0; color: #e60; font-weight: 600; white-space: nowrap;
+}
+.news-text { font-size: 13px; color: #333; line-height: 1.5; flex: 1; }
+
+/* ── アクセス ── */
+.access-map {
+  width: 100%; height: 180px;
+  background: linear-gradient(135deg, #e8e8e8, #d0d0d0);
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 8px; margin-bottom: 12px;
+  color: #999; font-size: 13px; overflow: hidden;
+}
+.access-map iframe { width: 100%; height: 100%; border: none; }
+.access-info dl { display: grid; grid-template-columns: auto 1fr; gap: 8px 12px; }
+.access-info dt { font-size: 12px; color: #888; font-weight: 600; white-space: nowrap; }
+.access-info dd { font-size: 13px; color: #333; line-height: 1.5; }
+
+/* ── 予約CTAバー（固定） ── */
+.reserve-bar {
+  position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
+  width: 100%; max-width: 480px;
+  padding: 10px 14px 20px;
+  background: linear-gradient(transparent, #fff 30%);
+  z-index: 20;
+}
+.reserve-btn {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%; height: 50px;
+  background: #e60; color: #fff;
+  font-size: 16px; font-weight: 700;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(238,102,0,.4);
+  transition: background .15s;
+}
+.reserve-btn:active { background: #c55200; }
+.reserve-btn::before { content: '📅'; font-size: 18px; }
+
+/* ── フッター ── */
+.footer {
+  padding: 24px 14px 100px;
+  text-align: center;
+  border-top: 1px solid #f0f0f0;
+}
+.footer__name { font-size: 14px; font-weight: 700; letter-spacing: 2px; color: #1a1a1a; margin-bottom: 4px; }
+.footer__copy { font-size: 11px; color: #bbb; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ヒーロー -->
+  <div class="hero">
+    <div class="hero__logo">MONTH<br>COLOR</div>
+    <div class="hero__title">MONTH COLOR</div>
+    <div class="hero__sub">HAIR &amp; BEAUTY SALON</div>
+  </div>
+
+  <!-- ナビ -->
+  <nav class="nav">
+    <a class="nav__item active" href="/">トップ</a>
+    <a class="nav__item" href="/menu">メニュー</a>
+    <a class="nav__item" href="/#access">アクセス</a>
+    <a class="nav__item" href="/reserve">予約する</a>
+  </nav>
+
+  <!-- サービス -->
+  <div class="section">
+    <div class="section__title">Services</div>
+    <div class="service-grid">
+      <a class="service-card" href="/menu#hair">
+        <div class="service-card__thumb service-card__thumb--hair">💇</div>
+        <div class="service-card__body">
+          <div class="service-card__name">ヘアカラー</div>
+          <div class="service-card__price">¥4,400〜</div>
+        </div>
+        <span class="service-card__link">メニューを見る ›</span>
+      </a>
+      <a class="service-card" href="/menu#white">
+        <div class="service-card__thumb service-card__thumb--white">✨</div>
+        <div class="service-card__body">
+          <div class="service-card__name">セルフ<br>ホワイトニング</div>
+          <div class="service-card__price">¥3,300〜</div>
+        </div>
+        <span class="service-card__link">メニューを見る ›</span>
+      </a>
+      <a class="service-card" href="/menu#lash">
+        <div class="service-card__thumb service-card__thumb--lash">👁</div>
+        <div class="service-card__body">
+          <div class="service-card__name">まつ毛パーマ</div>
+          <div class="service-card__price">¥5,500〜</div>
+        </div>
+        <span class="service-card__link">メニューを見る ›</span>
+      </a>
+      <a class="service-card" href="/menu#spa">
+        <div class="service-card__thumb service-card__thumb--spa">🧖</div>
+        <div class="service-card__body">
+          <div class="service-card__name">ドライ<br>ヘッドスパ</div>
+          <div class="service-card__price">¥3,300〜</div>
+        </div>
+        <span class="service-card__link">メニューを見る ›</span>
+      </a>
+    </div>
+  </div>
+
+  <!-- お知らせ -->
+  <div class="section">
+    <div class="section__title">News</div>
+    <div class="news-item">
+      <div class="news-date">2026/04/01</div>
+      <div>
+        <div class="news-badge">お知らせ</div>
+        <div class="news-text">自社予約サイトがオープンしました。オンラインから24時間ご予約いただけます。</div>
+      </div>
+    </div>
+    <div class="news-item">
+      <div class="news-date">2026/04/01</div>
+      <div>
+        <div class="news-badge">営業</div>
+        <div class="news-text">GW期間中（4/29〜5/6）は通常通り営業いたします。</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- アクセス -->
+  <div class="section" id="access">
+    <div class="section__title">Access</div>
+    <div class="access-map">
+      <!-- Google Maps埋め込み用 (住所確定後に差し替え) -->
+      <span>📍 地図を表示</span>
+    </div>
+    <div class="access-info">
+      <dl>
+        <dt>住所</dt>
+        <dd>〒150-0000<br>東京都渋谷区〇〇 X-X-X</dd>
+        <dt>電話</dt>
+        <dd><a href="tel:0X0-XXXX-XXXX" style="color:#07f;font-weight:700">0X0-XXXX-XXXX</a></dd>
+        <dt>営業時間</dt>
+        <dd>10:00〜20:00（最終受付 19:00）</dd>
+        <dt>定休日</dt>
+        <dd>不定休</dd>
+        <dt>アクセス</dt>
+        <dd>〇〇駅 徒歩X分</dd>
+      </dl>
+    </div>
+  </div>
+
+  <!-- フッター -->
+  <footer class="footer">
+    <div class="footer__name">MONTH COLOR</div>
+    <div class="footer__copy">&copy; 2026 MONTH COLOR. All rights reserved.</div>
+  </footer>
+
+  <!-- 固定予約ボタン -->
+  <div class="reserve-bar">
+    <a class="reserve-btn" href="/reserve">ネット予約はこちら</a>
+  </div>
+
+</div>
+</body>
+</html>
