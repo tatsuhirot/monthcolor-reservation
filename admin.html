@@ -259,9 +259,10 @@ body { font-family: "Hiragino Sans", Meiryo, sans-serif; background: #f0f2f0; co
   min-width: 400px;
 }
 .sched-th-time {
-  width: 46px; background: #f5f5f5; border: 1px solid #e0e0e0;
-  padding: 2px 4px; font-size: 11px; color: #999; text-align: right;
-  white-space: nowrap; height: 24px; vertical-align: middle;
+  width: 42px; background: #f7f7f7; border-right: 1px solid #e0e0e0;
+  padding: 0 4px; font-size: 10px; color: #aaa; text-align: right;
+  white-space: nowrap; line-height: 24px; height: 24px;
+  box-sizing: border-box;
 }
 .sched-th-col {
   background: #f5f5f5; border: 1px solid #e0e0e0;
@@ -269,49 +270,44 @@ body { font-family: "Hiragino Sans", Meiryo, sans-serif; background: #f0f2f0; co
   text-align: center; color: #333;
   position: sticky; top: 0; z-index: 2;
 }
-.sched-tc {
-  width: 52px; border: 1px solid #f0f0f0;
-  text-align: right; padding: 0 8px;
-  font-size: 12px; font-weight: 700; color: #777;
-  white-space: nowrap; background: #fafafa;
-  vertical-align: middle; height: 38px;
-}
-.sched-tc.half { color: #ccc; font-weight: 400; font-size: 11px; }
 .sched-cell {
-  border: 1px solid #f0f0f0;
-  padding: 2px 4px; vertical-align: middle; height: 24px;
-  text-align: center;
+  border-right: 1px solid #e8e8e8;
+  padding: 0; vertical-align: top; height: 24px;
+  box-sizing: border-box; overflow: hidden;
 }
-.sched-open-cell {
-  background: #f0fdf4;
-}
-.sched-open-cell:hover { background: #dcfce7; }
-.sched-open-text {
-  font-size: 12px; font-weight: 700; color: #4ade80; letter-spacing: .5px;
-}
+.sched-open-cell { background: #f6fff6; }
 .sched-booked-cs {
-  background: #1b5e20; color: #fff;
-  border-radius: 5px; padding: 4px 8px;
-  font-size: 12px; font-weight: 700;
-  display: inline-block; max-width: 100%;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  cursor: pointer;
+  display: block; width: 100%; height: 100%; min-height: 24px;
+  background: #2e7d32; color: #fff;
+  border-left: 3px solid #66bb6a;
+  padding: 3px 6px; font-size: 12px; font-weight: 700;
+  cursor: pointer; text-align: left; box-sizing: border-box;
+  overflow: hidden;
 }
-.sched-booked-cs:hover { background: #2d7a33; }
+.sched-booked-cs:hover { background: #388e3c; }
+.sched-booked-cs .sched-range {
+  display: block; font-size: 10px; font-weight: 400; opacity: .8; margin-top: 1px;
+}
 .sched-booked-sb {
+  display: block; width: 100%; height: 100%; min-height: 24px;
   background: #e8eaf6; color: #3949ab;
-  border-radius: 5px; padding: 4px 8px;
-  font-size: 11px; display: inline-block;
-  border: 1px solid #c5cae9;
+  border-left: 3px solid #7986cb;
+  padding: 3px 6px; font-size: 11px;
+  text-align: left; box-sizing: border-box; overflow: hidden;
 }
 .sched-th-lane {
   background: #fafafa; border: 1px solid #e8e8e8;
-  padding: 4px 6px; font-size: 11px; color: #999;
+  padding: 3px 4px; font-size: 10px; color: #bbb;
   text-align: center; font-weight: 400;
 }
-.sched-row td { border-top: 1px solid #f0f0f0; }
-.sched-row-hour td { border-top: 2px solid #d0d0d0; }
-.sched-row-half td { border-top: 1px dashed #ebebeb; }
+/* 全行均一: border は left/right のみ、top は行クラスで制御 */
+.sched-row td,
+.sched-row-hour td,
+.sched-row-half td { height: 24px; box-sizing: border-box; }
+.sched-row td         { border-top: 1px solid #f0f0f0; }
+.sched-row-hour td    { border-top: 1px solid #c8c8c8; }
+.sched-row-hour .sched-th-time { color: #777; font-size: 11px; font-weight: 600; }
+.sched-row-half td    { border-top: 1px dashed #e8e8e8; }
 .live-dot { color: #4caf50; animation: pulse-dot 2s ease-in-out infinite; margin-left: 4px; }
 
 /* ── CS行クリック ── */
@@ -1707,7 +1703,7 @@ async function loadSchedule() {
             let block;
             if (r._src === 'cs') {
               const safeName = (r.name || '—').replace(/'/g, "\\'");
-              const range = r.timeRange ? `<br><span style="font-size:10px;opacity:.7">${r.timeRange}</span>` : '';
+              const range = r.timeRange ? `<span class="sched-range">${r.timeRange}</span>` : '';
               block = `<div class="sched-booked-cs" onclick="openCsDetailByRef('${safeName}','${dateStr}')" title="${r.menu||''}">${r.name||'—'}${range}</div>`;
             } else {
               block = `<div class="sched-booked-sb" title="${r.menu||''}">${r.name||r.menu||'SB'}</div>`;
