@@ -241,6 +241,54 @@ body { font-family: "Hiragino Sans", Meiryo, sans-serif; background: #f0f2f0; co
 .sb-empty { color: #aaa; font-size: 13px; padding: 20px 16px; }
 .sb-meta { font-size: 11px; color: #aaa; padding: 6px 16px 10px; border-top: 1px solid #f0f0f0; }
 @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:.25} }
+
+/* ── タイムライン（スケジュールグリッド）── */
+.sched-wrap { padding: 0 20px 20px; }
+.sched-date-bar {
+  display: flex; align-items: center; gap: 8px;
+  background: #fff; border-bottom: 1px solid #e0e0e0;
+  padding: 10px 20px; margin: 0 -20px 14px;
+}
+.sched-date-label { font-size: 15px; font-weight: 700; color: #1b5e20; min-width: 110px; }
+.sched-legend { display: flex; gap: 14px; align-items: center; font-size: 12px; color: #555; margin-left: auto; }
+.sched-legend-dot { width: 10px; height: 10px; border-radius: 2px; display: inline-block; margin-right: 4px; }
+.sched-table { width: 100%; border-collapse: separate; border-spacing: 0 2px; }
+.sched-tc { /* time column */
+  width: 52px; padding: 0 10px 0 0;
+  text-align: right; vertical-align: top;
+  padding-top: 10px; white-space: nowrap;
+  font-size: 12px; font-weight: 700; color: #666;
+  user-select: none;
+}
+.sched-tc.half { color: #ccc; font-weight: 400; }
+.sched-sc { padding: 2px 0; } /* slot column */
+.sched-slot {
+  border-radius: 6px; padding: 7px 12px;
+  min-height: 34px; display: flex; align-items: center; gap: 8px;
+  font-size: 13px; margin-bottom: 2px;
+}
+.sched-slot:last-child { margin-bottom: 0; }
+.sched-empty {
+  background: #fafafa; border: 1px dashed #e8e8e8;
+  color: #ccc; font-size: 12px;
+}
+.sched-cs {
+  background: #e8f5e9; border-left: 4px solid #2d6a31;
+  cursor: pointer; transition: background .12s;
+}
+.sched-cs:hover { background: #c8e6c9; }
+.sched-sb {
+  background: #e8eaf6; border-left: 4px solid #5c6bc0;
+}
+.sched-badge {
+  font-size: 10px; font-weight: 700; padding: 2px 6px;
+  border-radius: 3px; flex-shrink: 0;
+}
+.sched-badge-cs { background: #2d6a31; color: #fff; }
+.sched-badge-sb { background: #5c6bc0; color: #fff; }
+.sched-name { font-weight: 700; color: #1b5e20; }
+.sched-menu { color: #666; font-size: 12px; }
+.sched-time-range { color: #aaa; font-size: 11px; margin-left: auto; }
 .live-dot { color: #4caf50; animation: pulse-dot 2s ease-in-out infinite; margin-left: 4px; }
 
 /* ── CS行クリック ── */
@@ -530,7 +578,8 @@ body { font-family: "Hiragino Sans", Meiryo, sans-serif; background: #f0f2f0; co
 
       <!-- コンテンツタブ -->
       <div class="content-tabs">
-        <button class="content-tab active">📅 予約一覧</button>
+        <button class="content-tab active" id="tabList" onclick="switchContentTab('list',this)">📅 予約一覧</button>
+        <button class="content-tab" id="tabSched" onclick="switchContentTab('sched',this)">🗓 タイムライン</button>
       </div>
 
       <!-- コンテンツエリア -->
@@ -591,6 +640,26 @@ body { font-family: "Hiragino Sans", Meiryo, sans-serif; background: #f0f2f0; co
         </div>
 
       </div><!-- /content-area -->
+
+      <!-- ══ タイムラインビュー ══ -->
+      <div id="schedSection" style="display:none">
+        <div class="sched-date-bar">
+          <button class="sb-refresh-btn" onclick="schedShiftDay(-1)">◀ 前日</button>
+          <span class="sched-date-label" id="schedDateLabel"></span>
+          <button class="sb-refresh-btn" onclick="schedShiftDay(1)">次日 ▶</button>
+          <button class="sb-refresh-btn" onclick="schedGoToday()">今日</button>
+          <button class="sb-refresh-btn" onclick="loadSchedule()">🔄</button>
+          <div class="sched-legend">
+            <span><span class="sched-legend-dot" style="background:#2d6a31"></span>CS予約</span>
+            <span><span class="sched-legend-dot" style="background:#5c6bc0"></span>SalonBoard</span>
+            <span><span class="sched-legend-dot" style="background:#e8e8e8;border:1px dashed #ccc"></span>空き</span>
+          </div>
+        </div>
+        <div class="sched-wrap">
+          <div id="schedContent"><div class="sb-empty">タイムラインタブをクリックして読み込み</div></div>
+        </div>
+      </div>
+
     </div><!-- /main-content -->
   </div><!-- /page-body -->
 </div><!-- /mainScreen -->
@@ -1405,6 +1474,137 @@ async function loadWeekSummary() {
       </div>
     `;
   }).join('');
+}
+
+/* ══ タブ切り替え ══ */
+function switchContentTab(tab, el) {
+  document.querySelectorAll('.content-tab').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+
+  const listArea = document.querySelector('.content-area');
+  const schedArea = document.getElementById('schedSection');
+
+  if (tab === 'sched') {
+    listArea.style.display = 'none';
+    schedArea.style.display = 'block';
+    loadSchedule();
+  } else {
+    listArea.style.display = '';
+    schedArea.style.display = 'none';
+  }
+}
+
+/* ══ タイムライン（スケジュールビュー）══ */
+let schedViewDate = new Date();
+schedViewDate.setHours(0, 0, 0, 0);
+
+function schedFmtDate(d) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function schedShiftDay(n) {
+  schedViewDate.setDate(schedViewDate.getDate() + n);
+  loadSchedule();
+}
+function schedGoToday() {
+  schedViewDate = new Date();
+  schedViewDate.setHours(0, 0, 0, 0);
+  loadSchedule();
+}
+
+async function loadSchedule() {
+  const content = document.getElementById('schedContent');
+  const label   = document.getElementById('schedDateLabel');
+  content.innerHTML = '<div class="sb-empty">読み込み中...</div>';
+
+  const dateStr = schedFmtDate(schedViewDate);
+  const dow = ['日','月','火','水','木','金','土'][schedViewDate.getDay()];
+  label.textContent = `${schedViewDate.getMonth()+1}/${schedViewDate.getDate()}(${dow})`;
+
+  try {
+    const [csRes, sbRes] = await Promise.all([
+      fetch(`/api/comingsoon-date?date=${dateStr}`, {
+        headers: { Authorization: `Bearer ${password}` },
+      }).then(r => r.json()).catch(() => ({ reservations: [] })),
+      fetch(`/api/salonboard-date?date=${dateStr}`, {
+        headers: { Authorization: `Bearer ${password}` },
+      }).then(r => r.json()).catch(() => ({ reservations: [] })),
+    ]);
+
+    // 時刻 → エントリのマップ
+    const csMap = {};
+    for (const r of (csRes.reservations || [])) {
+      const t = r.time || '??:??';
+      if (!csMap[t]) csMap[t] = [];
+      csMap[t].push(r);
+    }
+    const sbMap = {};
+    for (const r of (sbRes.reservations || [])) {
+      const t = r.time || '??:??';
+      if (!sbMap[t]) sbMap[t] = [];
+      sbMap[t].push(r);
+    }
+
+    // 9:00〜20:00 の30分刻みスロットを基本に、実データの時刻を追加
+    const baseSlots = [];
+    for (let h = 9; h < 20; h++) {
+      baseSlots.push(`${String(h).padStart(2,'0')}:00`);
+      baseSlots.push(`${String(h).padStart(2,'0')}:30`);
+    }
+    const allTimes = new Set(baseSlots);
+    for (const t of Object.keys(csMap)) { if (t !== '??:??') allTimes.add(t); }
+    for (const t of Object.keys(sbMap)) { if (t !== '??:??') allTimes.add(t); }
+    const sortedTimes = [...allTimes].sort();
+
+    let html = '<table class="sched-table"><tbody>';
+    for (const t of sortedTimes) {
+      const csEntries = csMap[t] || [];
+      const sbEntries = sbMap[t] || [];
+      const isHalf = t.endsWith(':30');
+
+      let slotsHtml = '';
+      if (csEntries.length === 0 && sbEntries.length === 0) {
+        slotsHtml = `<div class="sched-slot sched-empty">空き</div>`;
+      } else {
+        for (const r of csEntries) {
+          const range = r.timeRange && r.timeRange !== r.time ? r.timeRange : '';
+          slotsHtml += `
+            <div class="sched-slot sched-cs" onclick="openCsDetailByRef('${(r.name||'').replace(/'/g,"\\'")}','${schedFmtDate(schedViewDate)}')">
+              <span class="sched-badge sched-badge-cs">CS</span>
+              <span class="sched-name">${r.name || '—'}</span>
+              ${r.menu ? `<span class="sched-menu">${r.menu}</span>` : ''}
+              ${range ? `<span class="sched-time-range">${range}</span>` : ''}
+            </div>`;
+        }
+        for (const r of sbEntries) {
+          slotsHtml += `
+            <div class="sched-slot sched-sb">
+              <span class="sched-badge sched-badge-sb">SB</span>
+              <span class="sched-menu">${r.menuName || '—'}</span>
+            </div>`;
+        }
+      }
+
+      html += `
+        <tr class="sched-row">
+          <td class="sched-tc${isHalf ? ' half' : ''}">${t}</td>
+          <td class="sched-sc">${slotsHtml}</td>
+        </tr>`;
+    }
+    html += '</tbody></table>';
+    content.innerHTML = html;
+
+  } catch (e) {
+    content.innerHTML = `<div class="sb-empty">データ取得エラー: ${e.message}</div>`;
+  }
+}
+
+// スケジュールから顧客名でCS詳細モーダルを開く
+function openCsDetailByRef(name, date) {
+  if (!csCurrentList || csCurrentList.length === 0) return;
+  // csCurrentList は csSection の日付のリストなので、同じ日の場合のみ使える
+  const idx = csCurrentList.findIndex(r => r.name === name);
+  if (idx !== -1) { openCsDetail(idx); return; }
+  // 別の日付の場合はモーダル非対応（情報なし）
 }
 
 /* ══ ユーティリティ ══ */
