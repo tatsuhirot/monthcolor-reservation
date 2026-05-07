@@ -180,6 +180,7 @@ async function syncSlots() {
     // ── 1日ずつ全日をスキャン ─────────────────────────────────────
     // SalonBoardは ?date=YYYYMMDD で1日単位のデータを返すため、日ごとに取得する
     const allSlots = {};
+    const reservationsByMonth = {}; // { "YYYY-MM": { "YYYY-MM-DD": [...] } }
     const now = new Date();
     const todayKey = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`;
     const endDate = new Date(now.getFullYear(), now.getMonth() + monthCount, 0); // 最終月末
@@ -188,8 +189,10 @@ async function syncSlots() {
     let todayReservations = [];
 
     while (current <= endDate) {
-      const dateKey = `${current.getFullYear()}${String(current.getMonth()+1).padStart(2,'0')}${String(current.getDate()).padStart(2,'0')}`;
-      const label   = `${current.getFullYear()}/${current.getMonth()+1}/${current.getDate()}`;
+      const dateKey  = `${current.getFullYear()}${String(current.getMonth()+1).padStart(2,'0')}${String(current.getDate()).padStart(2,'0')}`;
+      const dateLabel = `${current.getFullYear()}-${String(current.getMonth()+1).padStart(2,'0')}-${String(current.getDate()).padStart(2,'0')}`;
+      const monthKey  = dateLabel.slice(0, 7);
+      const label     = `${current.getFullYear()}/${current.getMonth()+1}/${current.getDate()}`;
 
       await page.goto(
         `https://salonboard.com/CLP/bt/schedule/salonSchedule/?date=${dateKey}`,
@@ -197,14 +200,21 @@ async function syncSlots() {
       );
       await page.waitForTimeout(800);
 
-      const html  = await page.content();
-      const slots = parseEmptySlots(html);
+      const html       = await page.content();
+      const slots      = parseEmptySlots(html);
+      const stylistMap = parseStylistMap(html);
+      const dayRes     = parseReservations(html, stylistMap);
 
-      // 今日のページだけ予約済みブロックも取得
+      // 予約データを月別に蓄積
+      if (dayRes.length > 0) {
+        if (!reservationsByMonth[monthKey]) reservationsByMonth[monthKey] = {};
+        reservationsByMonth[monthKey][dateLabel] = dayRes;
+      }
+
+      // 今日だけ追加ログ＆today-reservations 用に保持
       if (dateKey === todayKey) {
-        const stylistMap = parseStylistMap(html);
+        todayReservations = dayRes;
         console.log(`🗂  メニューマップ: ${JSON.stringify(stylistMap)}`);
-        todayReservations = parseReservations(html, stylistMap);
         console.log(`📋 今日の予約: ${todayReservations.length}件`);
       }
 
@@ -212,13 +222,24 @@ async function syncSlots() {
       const slotCount = Object.values(slots).reduce((s, a) => s + a.length, 0);
       if (dayCount > 0) {
         Object.assign(allSlots, slots);
-        console.log(`✅ ${label}: ${slotCount}枠`);
+        console.log(`✅ ${label}: ${slotCount}枠 / 予約${dayRes.length}件`);
       }
-      // 空き枠なしの日はログ省略（多すぎるため）
 
       current.setDate(current.getDate() + 1);
     }
     console.log(`\n合計: ${Object.keys(allSlots).length}日分の空き枠を取得`);
+
+    // ── 月別予約データを Blob に保存 ────────────────────────────
+    const updatedAt = new Date().toISOString();
+    for (const [month, data] of Object.entries(reservationsByMonth)) {
+      const payload = JSON.stringify({ updatedAt, month, reservations: data }, null, 2);
+      await put(`salonboard-${month}.json`, payload, {
+        access: 'public', addRandomSuffix: false, allowOverwrite: true,
+        token: process.env.BLOB_READ_WRITE_TOKEN,
+      });
+      const totalRes = Object.values(data).reduce((s, a) => s + a.length, 0);
+      console.log(`✅ salonboard-${month}.json 保存 (${Object.keys(data).length}日 / ${totalRes}件)`);
+    }
 
     await context.storageState({ path: statePath });
 
