@@ -259,9 +259,9 @@ body { font-family: "Hiragino Sans", Meiryo, sans-serif; background: #f0f2f0; co
   min-width: 400px;
 }
 .sched-th-time {
-  width: 52px; background: #f5f5f5; border: 1px solid #e0e0e0;
-  padding: 8px 6px; font-size: 11px; color: #999; text-align: center;
-  position: sticky; top: 0; z-index: 2;
+  width: 46px; background: #f5f5f5; border: 1px solid #e0e0e0;
+  padding: 2px 4px; font-size: 11px; color: #999; text-align: right;
+  white-space: nowrap; height: 24px; vertical-align: middle;
 }
 .sched-th-col {
   background: #f5f5f5; border: 1px solid #e0e0e0;
@@ -279,7 +279,7 @@ body { font-family: "Hiragino Sans", Meiryo, sans-serif; background: #f0f2f0; co
 .sched-tc.half { color: #ccc; font-weight: 400; font-size: 11px; }
 .sched-cell {
   border: 1px solid #f0f0f0;
-  padding: 4px 8px; vertical-align: middle; height: 38px;
+  padding: 2px 4px; vertical-align: middle; height: 24px;
   text-align: center;
 }
 .sched-open-cell {
@@ -309,9 +309,9 @@ body { font-family: "Hiragino Sans", Meiryo, sans-serif; background: #f0f2f0; co
   padding: 4px 6px; font-size: 11px; color: #999;
   text-align: center; font-weight: 400;
 }
-.sched-row td { border-top: 2px solid #e8e8e8; }
-.sched-row-half td { border-top: 1px dashed #f0f0f0; }
-.sched-row-half .sched-th-time { color: #ccc; font-weight: 400; font-size: 11px; }
+.sched-row td { border-top: 1px solid #f0f0f0; }
+.sched-row-hour td { border-top: 2px solid #d0d0d0; }
+.sched-row-half td { border-top: 1px dashed #ebebeb; }
 .live-dot { color: #4caf50; animation: pulse-dot 2s ease-in-out infinite; margin-left: 4px; }
 
 /* ── CS行クリック ── */
@@ -1582,11 +1582,12 @@ async function loadSchedule() {
       })),
     ];
 
-    // 9:00〜20:00 30分刻み + 実データの開始時刻
+    // 9:00〜20:00 10分刻み + 実データの開始時刻
     const baseSlots = [];
     for (let h = 9; h < 20; h++) {
-      baseSlots.push(`${String(h).padStart(2,'0')}:00`);
-      baseSlots.push(`${String(h).padStart(2,'0')}:30`);
+      for (let m = 0; m < 60; m += 10) {
+        baseSlots.push(`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`);
+      }
     }
     const allTimesSet = new Set(baseSlots);
     for (const r of allEntries) {
@@ -1718,8 +1719,11 @@ async function loadSchedule() {
         }
       }
 
-      html += `<tr class="${isHalf ? 'sched-row-half' : 'sched-row'}">
-        <td class="sched-th-time">${t}</td>
+      const mins = t.slice(3);
+      const rowCls = mins === '00' ? 'sched-row-hour' : mins === '30' ? 'sched-row-half' : 'sched-row';
+      const timeLabel = (mins === '00' || mins === '30') ? t : '';
+      html += `<tr class="${rowCls}">
+        <td class="sched-th-time">${timeLabel}</td>
         ${tds}
       </tr>`;
     }
