@@ -1,25 +1,33 @@
 {
   "routes": [
-    { "src": "/api/(.*)",  "dest": "/api/$1" },
-    { "src": "/admin",     "dest": "/admin.html" },
-    { "src": "/register",  "dest": "/register.html" },
-    { "src": "/report",    "dest": "/report.html" },
+    { "src": "/api/comingsoon-today(.*)", "dest": "/api/comingsoon$1" },
+    { "src": "/api/comingsoon-date(.*)",  "dest": "/api/comingsoon$1" },
+    { "src": "/api/salonboard-date(.*)",  "dest": "/api/salonboard$1" },
+    { "src": "/api/slots(.*)",            "dest": "/api/salonboard$1" },
+    { "src": "/api/today-reservations(.*)", "dest": "/api/salonboard?today=1" },
+    { "src": "/api/cron-cs-sync(.*)",     "dest": "/api/cron?type=cs-sync" },
+    { "src": "/api/cron-remind(.*)",      "dest": "/api/cron?type=remind" },
+    { "src": "/api/cron-morning-report(.*)", "dest": "/api/cron?type=morning-report" },
+    { "src": "/api/(.*)",   "dest": "/api/$1" },
+    { "src": "/admin",      "dest": "/admin.html" },
+    { "src": "/register",   "dest": "/register.html" },
+    { "src": "/report",     "dest": "/report.html" },
     { "src": "/customers",  "dest": "/customers.html" },
-    { "src": "/reserve",   "dest": "/reservation.html" },
-    { "src": "/menu",      "dest": "/menu.html" },
-    { "src": "/",          "dest": "/index.html" }
+    { "src": "/reserve",    "dest": "/reservation.html" },
+    { "src": "/menu",       "dest": "/menu.html" },
+    { "src": "/",           "dest": "/index.html" }
   ],
   "crons": [
     {
-      "path": "/api/cron-remind",
+      "path": "/api/cron?type=remind",
       "schedule": "0 10 * * *"
     },
     {
-      "path": "/api/cron-cs-sync",
+      "path": "/api/cron?type=cs-sync",
       "schedule": "0 0 * * *"
     },
     {
-      "path": "/api/cron-morning-report",
+      "path": "/api/cron?type=morning-report",
       "schedule": "0 23 * * *"
     }
   ]

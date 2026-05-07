@@ -1,10 +1,9 @@
 /**
- * api/comingsoon-date.js
- * GET /api/comingsoon-date?date=YYYY-MM-DD
- * スタッフ用: 指定日の coming-soon 予約一覧を返す（パスワード認証付き）
+ * api/comingsoon.js
+ * (comingsoon-today.js + comingsoon-date.js を統合)
  *
- * データは sync_comingsoon.js が comingsoon-YYYY-MM-DD.json として Blob に保存する。
- * date パラメータ省略時は今日。
+ * GET /api/comingsoon              → 今日の予約（comingsoon-today と同等）
+ * GET /api/comingsoon?date=YYYY-MM-DD → 指定日の予約（comingsoon-date と同等）
  */
 
 const { head } = require('@vercel/blob');
@@ -22,18 +21,24 @@ module.exports = async function handler(req, res) {
     return res.status(401).json({ error: 'パスワードが違います' });
   }
 
-  // 日付パラメータ (YYYY-MM-DD)
-  const date = (req.query.date || '').trim() || (() => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
-  })();
-
-  // 簡易バリデーション
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-    return res.status(400).json({ error: '日付フォーマットが不正です (YYYY-MM-DD)' });
-  }
+  const date = (req.query.date || '').trim();
 
   try {
+    // ?date 省略 → comingsoon-today.json（今日キャッシュ）を使用
+    if (!date) {
+      const blob = await head('comingsoon-today.json', {
+        token: process.env.BLOB_READ_WRITE_TOKEN,
+      });
+      if (!blob) return res.status(200).json({ updatedAt: null, date: null, reservations: [] });
+      const data = await fetch(blob.url).then(r => r.json());
+      res.setHeader('Cache-Control', 'no-store');
+      return res.status(200).json(data);
+    }
+
+    // ?date=YYYY-MM-DD → 日付指定
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return res.status(400).json({ error: '日付フォーマットが不正です (YYYY-MM-DD)' });
+    }
     const blob = await head(`comingsoon-${date}.json`, {
       token: process.env.BLOB_READ_WRITE_TOKEN,
     });
@@ -47,6 +52,6 @@ module.exports = async function handler(req, res) {
     res.setHeader('Cache-Control', 'no-store');
     return res.status(200).json(data);
   } catch (e) {
-    return res.status(200).json({ updatedAt: null, date, reservations: [] });
+    return res.status(200).json({ updatedAt: null, date: date || null, reservations: [] });
   }
 };
