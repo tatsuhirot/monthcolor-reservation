@@ -2,7 +2,7 @@
  * api/receipt.js — 領収書HTML生成
  *
  * GET /api/receipt?saleId={id}
- * Authorization: Bearer {ADMIN_PASSWORD}
+ * Authorization: Bearer {COMINGSOON_PASSWORD}
  * → 印刷用HTMLを返す（ブラウザの印刷/PDF保存に対応）
  */
 
@@ -229,7 +229,7 @@ module.exports = async function handler(req, res) {
   // 管理パスワード認証（URLパラメータも許可 — 印刷タブでHeaderが使えないため）
   const authHeader = req.headers['authorization'] || '';
   const authQuery  = req.query.token || '';
-  const adminPw    = process.env.COMINGSOON_PASSWORD || process.env.ADMIN_PASSWORD || '';
+  const adminPw    = process.env.COMINGSOON_PASSWORD || '';
   const authed =
     authHeader === `Bearer ${adminPw}` ||
     authQuery  === adminPw;

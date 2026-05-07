@@ -38,7 +38,7 @@ module.exports = async function handler(req, res) {
 
   // 以下は認証あり
   const auth = (req.headers['authorization'] || '').replace('Bearer ', '').trim();
-  if (auth !== (process.env.COMINGSOON_PASSWORD || process.env.ADMIN_PASSWORD || '').trim()) {
+  if (auth !== (process.env.COMINGSOON_PASSWORD || '').trim()) {
     return res.status(401).json({ error: 'パスワードが違います' });
   }
 

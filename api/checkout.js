@@ -63,7 +63,7 @@ module.exports = async function handler(req, res) {
 
   // 管理パスワード認証
   const authHeader = req.headers['authorization'] || '';
-  if (authHeader !== `Bearer ${(process.env.COMINGSOON_PASSWORD || process.env.ADMIN_PASSWORD || '').trim()}`) {
+  if (authHeader !== `Bearer ${(process.env.COMINGSOON_PASSWORD || '').trim()}`) {
     return res.status(401).json({ error: '認証エラー' });
   }
 
