@@ -243,52 +243,70 @@ body { font-family: "Hiragino Sans", Meiryo, sans-serif; background: #f0f2f0; co
 @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:.25} }
 
 /* ── タイムライン（スケジュールグリッド）── */
-.sched-wrap { padding: 0 20px 20px; }
+.sched-wrap { padding: 0 0 20px; overflow-x: auto; }
 .sched-date-bar {
   display: flex; align-items: center; gap: 8px;
   background: #fff; border-bottom: 1px solid #e0e0e0;
-  padding: 10px 20px; margin: 0 -20px 14px;
+  padding: 10px 20px;
 }
 .sched-date-label { font-size: 15px; font-weight: 700; color: #1b5e20; min-width: 110px; }
 .sched-legend { display: flex; gap: 14px; align-items: center; font-size: 12px; color: #555; margin-left: auto; }
 .sched-legend-dot { width: 10px; height: 10px; border-radius: 2px; display: inline-block; margin-right: 4px; }
-.sched-table { width: 100%; border-collapse: separate; border-spacing: 0 2px; }
-.sched-tc { /* time column */
-  width: 52px; padding: 0 10px 0 0;
-  text-align: right; vertical-align: top;
-  padding-top: 10px; white-space: nowrap;
-  font-size: 12px; font-weight: 700; color: #666;
-  user-select: none;
+
+/* ── 列グリッドテーブル ── */
+.sched-table {
+  width: 100%; border-collapse: collapse; font-size: 13px;
+  min-width: 400px;
 }
-.sched-tc.half { color: #ccc; font-weight: 400; }
-.sched-sc { padding: 2px 0; } /* slot column */
-.sched-slot {
-  border-radius: 6px; padding: 7px 12px;
-  min-height: 34px; display: flex; align-items: center; gap: 8px;
-  font-size: 13px; margin-bottom: 2px;
+.sched-th-time {
+  width: 52px; background: #f5f5f5; border: 1px solid #e0e0e0;
+  padding: 8px 6px; font-size: 11px; color: #999; text-align: center;
+  position: sticky; top: 0; z-index: 2;
 }
-.sched-slot:last-child { margin-bottom: 0; }
-.sched-empty {
-  background: #fafafa; border: 1px dashed #e8e8e8;
-  color: #ccc; font-size: 12px;
+.sched-th-col {
+  background: #f5f5f5; border: 1px solid #e0e0e0;
+  padding: 8px 12px; font-size: 13px; font-weight: 700;
+  text-align: center; color: #333;
+  position: sticky; top: 0; z-index: 2;
 }
-.sched-cs {
-  background: #e8f5e9; border-left: 4px solid #2d6a31;
-  cursor: pointer; transition: background .12s;
+.sched-tc {
+  width: 52px; border: 1px solid #f0f0f0;
+  text-align: right; padding: 0 8px;
+  font-size: 12px; font-weight: 700; color: #777;
+  white-space: nowrap; background: #fafafa;
+  vertical-align: middle; height: 38px;
 }
-.sched-cs:hover { background: #c8e6c9; }
-.sched-sb {
-  background: #e8eaf6; border-left: 4px solid #5c6bc0;
+.sched-tc.half { color: #ccc; font-weight: 400; font-size: 11px; }
+.sched-cell {
+  border: 1px solid #f0f0f0;
+  padding: 4px 8px; vertical-align: middle; height: 38px;
+  text-align: center;
 }
-.sched-badge {
-  font-size: 10px; font-weight: 700; padding: 2px 6px;
-  border-radius: 3px; flex-shrink: 0;
+.sched-open-cell {
+  background: #f0fdf4;
 }
-.sched-badge-cs { background: #2d6a31; color: #fff; }
-.sched-badge-sb { background: #5c6bc0; color: #fff; }
-.sched-name { font-weight: 700; color: #1b5e20; }
-.sched-menu { color: #666; font-size: 12px; }
-.sched-time-range { color: #aaa; font-size: 11px; margin-left: auto; }
+.sched-open-cell:hover { background: #dcfce7; }
+.sched-open-text {
+  font-size: 12px; font-weight: 700; color: #4ade80; letter-spacing: .5px;
+}
+.sched-booked-cs {
+  background: #1b5e20; color: #fff;
+  border-radius: 5px; padding: 4px 8px;
+  font-size: 12px; font-weight: 700;
+  display: inline-block; max-width: 100%;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  cursor: pointer;
+}
+.sched-booked-cs:hover { background: #2d7a33; }
+.sched-booked-sb {
+  background: #e8eaf6; color: #3949ab;
+  border-radius: 5px; padding: 4px 8px;
+  font-size: 11px; display: inline-block;
+  border: 1px solid #c5cae9;
+}
+.sched-row td { border-top: 2px solid #e8e8e8; }
+.sched-row-half td { border-top: 1px dashed #f0f0f0; }
+.sched-row-half .sched-th-time { color: #ccc; font-weight: 400; font-size: 11px; }
 .live-dot { color: #4caf50; animation: pulse-dot 2s ease-in-out infinite; margin-left: 4px; }
 
 /* ── CS行クリック ── */
@@ -1511,84 +1529,102 @@ function schedGoToday() {
   loadSchedule();
 }
 
+/* ── サービス列分類 ── */
+function getServiceType(menu) {
+  if (!menu) return 'その他';
+  if (/カラー/.test(menu))                          return 'カラー';
+  if (/ホワイト|ニング|ホワイトニング/.test(menu))   return 'ホワイトニング';
+  if (/カット/.test(menu))                           return 'カット';
+  if (/パーマ/.test(menu))                           return 'パーマ';
+  if (/トリートメント/.test(menu))                   return 'トリートメント';
+  return 'その他';
+}
+
 async function loadSchedule() {
   const content = document.getElementById('schedContent');
   const label   = document.getElementById('schedDateLabel');
   content.innerHTML = '<div class="sb-empty">読み込み中...</div>';
 
+  const today   = new Date(); today.setHours(0,0,0,0);
+  const isToday = schedViewDate.getTime() === today.getTime();
   const dateStr = schedFmtDate(schedViewDate);
   const dow = ['日','月','火','水','木','金','土'][schedViewDate.getDay()];
   label.textContent = `${schedViewDate.getMonth()+1}/${schedViewDate.getDate()}(${dow})`;
 
   try {
+    // 今日は comingsoon-today.json（131件入り）を使う
+    const csUrl = isToday ? '/api/comingsoon' : `/api/comingsoon?date=${dateStr}`;
     const [csRes, sbRes] = await Promise.all([
-      fetch(`/api/comingsoon?date=${dateStr}`, {
-        headers: { Authorization: `Bearer ${password}` },
-      }).then(r => r.json()).catch(() => ({ reservations: [] })),
-      fetch(`/api/salonboard?date=${dateStr}`, {
-        headers: { Authorization: `Bearer ${password}` },
-      }).then(r => r.json()).catch(() => ({ reservations: [] })),
+      fetch(csUrl, { headers: { Authorization: `Bearer ${password}` } })
+        .then(r => r.json()).catch(() => ({ reservations: [] })),
+      fetch(`/api/salonboard?date=${dateStr}`, { headers: { Authorization: `Bearer ${password}` } })
+        .then(r => r.json()).catch(() => ({ reservations: [] })),
     ]);
 
-    // 時刻 → エントリのマップ
-    const csMap = {};
-    for (const r of (csRes.reservations || [])) {
+    // 全メニューを収集してカラム順を決定
+    const allEntries = [
+      ...(csRes.reservations || []).map(r => ({ ...r, _src: 'cs' })),
+      ...(sbRes.reservations || []).map(r => ({ ...r, _src: 'sb', name: r.customerName || r.name, menu: r.menuName || r.menu })),
+    ];
+
+    const COL_ORDER = ['カラー', 'ホワイトニング', 'カット', 'パーマ', 'トリートメント', 'その他'];
+    const usedCols = new Set(allEntries.map(r => getServiceType(r.menu)));
+    const cols = COL_ORDER.filter(c => usedCols.has(c));
+    if (cols.length === 0) cols.push('その他');
+
+    // 時刻 × 列 → entries[]
+    const grid = {}; // grid[time][col] = []
+    for (const r of allEntries) {
       const t = r.time || '??:??';
-      if (!csMap[t]) csMap[t] = [];
-      csMap[t].push(r);
-    }
-    const sbMap = {};
-    for (const r of (sbRes.reservations || [])) {
-      const t = r.time || '??:??';
-      if (!sbMap[t]) sbMap[t] = [];
-      sbMap[t].push(r);
+      const col = getServiceType(r.menu);
+      if (!grid[t]) grid[t] = {};
+      if (!grid[t][col]) grid[t][col] = [];
+      grid[t][col].push(r);
     }
 
-    // 9:00〜20:00 の30分刻みスロットを基本に、実データの時刻を追加
+    // 9:00〜20:00 の30分刻み + 実データ時刻
     const baseSlots = [];
     for (let h = 9; h < 20; h++) {
       baseSlots.push(`${String(h).padStart(2,'0')}:00`);
       baseSlots.push(`${String(h).padStart(2,'0')}:30`);
     }
     const allTimes = new Set(baseSlots);
-    for (const t of Object.keys(csMap)) { if (t !== '??:??') allTimes.add(t); }
-    for (const t of Object.keys(sbMap)) { if (t !== '??:??') allTimes.add(t); }
+    for (const t of Object.keys(grid)) { if (t !== '??:??') allTimes.add(t); }
     const sortedTimes = [...allTimes].sort();
 
-    let html = '<table class="sched-table"><tbody>';
+    // テーブル構築
+    const thCols = cols.map(c => `<th class="sched-th-col">${c}</th>`).join('');
+    let html = `<table class="sched-table">
+      <thead><tr>
+        <th class="sched-th-time">時刻</th>
+        ${thCols}
+      </tr></thead><tbody>`;
+
     for (const t of sortedTimes) {
-      const csEntries = csMap[t] || [];
-      const sbEntries = sbMap[t] || [];
       const isHalf = t.endsWith(':30');
+      const rowEntries = grid[t] || {};
+      const hasAny = cols.some(c => (rowEntries[c] || []).length > 0);
 
-      let slotsHtml = '';
-      if (csEntries.length === 0 && sbEntries.length === 0) {
-        slotsHtml = `<div class="sched-slot sched-empty">空き</div>`;
-      } else {
-        for (const r of csEntries) {
-          const range = r.timeRange && r.timeRange !== r.time ? r.timeRange : '';
-          slotsHtml += `
-            <div class="sched-slot sched-cs" onclick="openCsDetailByRef('${(r.name||'').replace(/'/g,"\\'")}','${schedFmtDate(schedViewDate)}')">
-              <span class="sched-badge sched-badge-cs">CS</span>
-              <span class="sched-name">${r.name || '—'}</span>
-              ${r.menu ? `<span class="sched-menu">${r.menu}</span>` : ''}
-              ${range ? `<span class="sched-time-range">${range}</span>` : ''}
-            </div>`;
+      const tdCols = cols.map(col => {
+        const entries = rowEntries[col] || [];
+        if (entries.length === 0) {
+          return `<td class="sched-cell sched-open-cell"><span class="sched-open-text">空き</span></td>`;
         }
-        for (const r of sbEntries) {
-          slotsHtml += `
-            <div class="sched-slot sched-sb">
-              <span class="sched-badge sched-badge-sb">SB</span>
-              <span class="sched-menu">${r.menuName || '—'}</span>
-            </div>`;
-        }
-      }
+        const blocks = entries.map(r => {
+          if (r._src === 'cs') {
+            const safeName = (r.name || '—').replace(/'/g, "\\'");
+            return `<div class="sched-booked-cs" onclick="openCsDetailByRef('${safeName}','${dateStr}')" title="${r.menu || ''}">${r.name || '—'}</div>`;
+          } else {
+            return `<div class="sched-booked-sb" title="${r.menu || ''}">${r.name || r.menu || 'SB予約'}</div>`;
+          }
+        }).join('');
+        return `<td class="sched-cell">${blocks}</td>`;
+      }).join('');
 
-      html += `
-        <tr class="sched-row">
-          <td class="sched-tc${isHalf ? ' half' : ''}">${t}</td>
-          <td class="sched-sc">${slotsHtml}</td>
-        </tr>`;
+      html += `<tr class="${isHalf ? 'sched-row-half' : 'sched-row'}">
+        <td class="sched-th-time">${t}</td>
+        ${tdCols}
+      </tr>`;
     }
     html += '</tbody></table>';
     content.innerHTML = html;
