@@ -37,6 +37,25 @@ app.use(cors({
 }));
 app.use(express.json());
 
+// ── 静的HTML配信 & ページルーティング ────────────────────────────
+app.use(express.static(__dirname));
+app.get('/admin',     (_, res) => res.sendFile(path.join(__dirname, 'admin.html')));
+app.get('/register',  (_, res) => res.sendFile(path.join(__dirname, 'register.html')));
+app.get('/report',    (_, res) => res.sendFile(path.join(__dirname, 'report.html')));
+app.get('/customers', (_, res) => res.sendFile(path.join(__dirname, 'customers.html')));
+app.get('/reserve',   (_, res) => res.sendFile(path.join(__dirname, 'reservation.html')));
+
+// ── api/ フォルダのServerless関数をローカルでマウント ────────────
+const apiDir = path.join(__dirname, 'api');
+fs.readdirSync(apiDir).filter(f => f.endsWith('.js')).forEach(file => {
+  const name = file.replace('.js', '');
+  try {
+    const handler = require(path.join(apiDir, file));
+    app.all(`/api/${name}`, handler);
+    console.log(`  ✓ /api/${name}`);
+  } catch(e) { console.warn(`  ✗ /api/${name}: ${e.message}`); }
+});
+
 // ── ヘルスチェック ─────────────────────────────────────────────
 app.get('/health', (_, res) => res.json({ ok: true }));
 

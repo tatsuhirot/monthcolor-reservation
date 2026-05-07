@@ -17,6 +17,10 @@
     {
       "path": "/api/cron-cs-sync",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron-morning-report",
+      "schedule": "0 23 * * *"
     }
   ]
 }
