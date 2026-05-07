@@ -1537,6 +1537,13 @@ function timeToMins(t) {
   if (p.length !== 2) return null;
   return parseInt(p[0]) * 60 + parseInt(p[1]);
 }
+/* ── 時刻を "HH:MM" に正規化（"9:10" → "09:10"） ── */
+function normTime(t) {
+  if (!t) return t;
+  const p = String(t).trim().split(':');
+  if (p.length !== 2) return t;
+  return `${String(parseInt(p[0])).padStart(2,'0')}:${p[1].padStart(2,'0')}`;
+}
 
 /* ── サービス列分類 ── */
 function getServiceType(menu) {
@@ -1587,7 +1594,7 @@ async function loadSchedule() {
     }
     const allTimesSet = new Set(baseSlots);
     for (const r of allEntries) {
-      if (r.time && r.time !== '??:??') allTimesSet.add(r.time);
+      if (r.time && r.time !== '??:??') allTimesSet.add(normTime(r.time));
     }
     const sortedTimes = [...allTimesSet].sort();
     const slotIndex = {};
@@ -1595,7 +1602,7 @@ async function loadSchedule() {
 
     // 各予約のスロットインデックスとrowspan計算
     function computeSpan(r) {
-      const startTime = r.time || '';
+      const startTime = normTime(r.time || '');
       const tr = r.timeRange || '';
       const startIdx = slotIndex[startTime];
       if (startIdx === undefined) return { startIdx: -1, span: 1 };
