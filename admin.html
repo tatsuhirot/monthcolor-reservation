@@ -1094,7 +1094,7 @@ async function openNewModal() {
   document.getElementById('newTimeRow').style.display = 'none';
   document.getElementById('newModal').classList.add('open');
   try {
-    const res = await fetch('/api/slots');
+    const res = await fetch('/api/salonboard');
     const d   = await res.json();
     slotsData = d.slots;
   } catch { slotsData = null; }
@@ -1179,7 +1179,7 @@ async function reload() {
 /* ══ スロット最終更新時刻 ══ */
 async function loadSyncTime() {
   try {
-    const r = await fetch('/api/slots');
+    const r = await fetch('/api/salonboard');
     if (!r.ok) return;
     const d = await r.json();
     if (d.updatedAt) {
@@ -1259,7 +1259,7 @@ async function loadComingsoonReservations(silent = false) {
   else csStopAutoRefresh();
 
   try {
-    const res = await fetch(`/api/comingsoon-date?date=${dateStr}`, {
+    const res = await fetch(`/api/comingsoon?date=${dateStr}`, {
       headers: { Authorization: `Bearer ${password}` },
     });
     const data = await res.json();
@@ -1336,7 +1336,7 @@ async function loadSbReservations() {
   try {
     // 今日はキャッシュ鮮度優先で today-reservations.json も参照できるが、
     // 統一して salonboard-date API を使う
-    const res = await fetch(`/api/salonboard-date?date=${dateStr}`, {
+    const res = await fetch(`/api/salonboard?date=${dateStr}`, {
       headers: { Authorization: `Bearer ${password}` },
     });
     const data = await res.json();
@@ -1458,7 +1458,7 @@ async function loadWeekSummary() {
 
   const results = await Promise.allSettled(
     days.map(({ date }) =>
-      fetch(`/api/comingsoon-date?date=${date}`, {
+      fetch(`/api/comingsoon?date=${date}`, {
         headers: { Authorization: `Bearer ${password}` },
       }).then(r => r.json()).catch(() => ({ reservations: [] }))
     )
@@ -1522,10 +1522,10 @@ async function loadSchedule() {
 
   try {
     const [csRes, sbRes] = await Promise.all([
-      fetch(`/api/comingsoon-date?date=${dateStr}`, {
+      fetch(`/api/comingsoon?date=${dateStr}`, {
         headers: { Authorization: `Bearer ${password}` },
       }).then(r => r.json()).catch(() => ({ reservations: [] })),
-      fetch(`/api/salonboard-date?date=${dateStr}`, {
+      fetch(`/api/salonboard?date=${dateStr}`, {
         headers: { Authorization: `Bearer ${password}` },
       }).then(r => r.json()).catch(() => ({ reservations: [] })),
     ]);
