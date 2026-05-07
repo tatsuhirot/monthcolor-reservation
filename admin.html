@@ -240,6 +240,8 @@ body { font-family: "Hiragino Sans", Meiryo, sans-serif; background: #f0f2f0; co
 .sb-id   { color: #bbb; font-size: 11px; }
 .sb-empty { color: #aaa; font-size: 13px; padding: 20px 16px; }
 .sb-meta { font-size: 11px; color: #aaa; padding: 6px 16px 10px; border-top: 1px solid #f0f0f0; }
+@keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:.25} }
+.live-dot { color: #4caf50; animation: pulse-dot 2s ease-in-out infinite; margin-left: 4px; }
 
 /* ── キューカード ── */
 .queue-head {
@@ -1073,6 +1075,7 @@ async function syncSlots() {
 /* ══ coming-soon 予約（日付ナビ付き） ══ */
 let csViewDate = new Date();
 csViewDate.setHours(0,0,0,0);
+let csAutoRefreshTimer = null;
 
 function csFmtDate(d) {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -1087,16 +1090,34 @@ function csGoToday() {
   loadComingsoonReservations();
 }
 
-async function loadComingsoonReservations() {
+// 今日を表示中のみ60秒ごとに自動更新
+function csStartAutoRefresh() {
+  if (csAutoRefreshTimer) clearInterval(csAutoRefreshTimer);
+  csAutoRefreshTimer = setInterval(() => {
+    const today = csFmtDate(new Date());
+    if (csFmtDate(csViewDate) === today) loadComingsoonReservations(true);
+    else csStopAutoRefresh();
+  }, 60_000);
+}
+function csStopAutoRefresh() {
+  if (csAutoRefreshTimer) { clearInterval(csAutoRefreshTimer); csAutoRefreshTimer = null; }
+}
+
+async function loadComingsoonReservations(silent = false) {
   const content = document.getElementById('csContent');
   const meta    = document.getElementById('csMeta');
   const label   = document.getElementById('csDateLabel');
-  content.innerHTML = '<div class="sb-empty">読み込み中...</div>';
+  if (!silent) content.innerHTML = '<div class="sb-empty">読み込み中...</div>';
   meta.textContent  = '';
 
   const dateStr = csFmtDate(csViewDate);
+  const today   = csFmtDate(new Date());
   const dow = ['日','月','火','水','木','金','土'][csViewDate.getDay()];
   label.textContent = `${csViewDate.getMonth()+1}/${csViewDate.getDate()}(${dow})`;
+
+  // 今日を表示中なら自動更新を開始、それ以外は停止
+  if (dateStr === today) csStartAutoRefresh();
+  else csStopAutoRefresh();
 
   try {
     const res = await fetch(`/api/comingsoon-date?date=${dateStr}`, {
@@ -1105,7 +1126,6 @@ async function loadComingsoonReservations() {
     const data = await res.json();
     const list = data.reservations || [];
 
-    const today = csFmtDate(new Date());
     if (dateStr === today) {
       document.getElementById('csCountNum').textContent = list.length;
       document.getElementById('csCountDate').textContent = dateStr;
@@ -1113,7 +1133,7 @@ async function loadComingsoonReservations() {
 
     if (list.length === 0) {
       const msg = data.message || '予約なし（または未同期）';
-      content.innerHTML = `<div class="sb-empty">${msg}<br><small>GitHub Actionsが毎朝7日分を自動同期します</small></div>`;
+      content.innerHTML = `<div class="sb-empty">${msg}<br><small>Vercelが毎分・GitHub Actionsが毎日7日分を自動同期します</small></div>`;
     } else {
       content.innerHTML = `
         <table class="sb-table">
@@ -1134,7 +1154,10 @@ async function loadComingsoonReservations() {
 
     if (data.updatedAt) {
       const t = new Date(data.updatedAt);
-      meta.textContent = `最終更新: ${t.toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`;
+      const updStr = t.toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+      meta.innerHTML = dateStr === today
+        ? `最終更新: ${updStr}<span class="live-dot">●</span>`
+        : `最終更新: ${updStr}`;
     }
   } catch {
     content.innerHTML = '<div class="sb-empty">データ取得エラー</div>';

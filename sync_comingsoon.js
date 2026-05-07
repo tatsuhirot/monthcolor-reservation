@@ -83,22 +83,35 @@ function startTime(reserveTime) {
   return `${h.padStart(2, '0')}:${m || '00'}`;
 }
 
+// ── DWR リクエストテンプレート（クロン再生用） ───────────────────────
+const capturedDwrRequests = [];
+
 // ── 1日分を取得してBlobに保存 ──────────────────────────────────────
 async function syncOneDate(page, context, targetDate) {
   const dateKey = targetDate.replace(/-/g, '');
   console.log(`\n📅 ${targetDate} を取得中...`);
 
   const allDwrTexts = [];
+  // リクエストボディを捕捉（クロン再生テンプレート用）
+  // 同一URLへの全リクエストを記録（batchIdが異なるためデータが変わる可能性）
+  const reqHandler = req => {
+    if (req.url().includes('findReserveTableDataV2') && req.method() === 'POST') {
+      const body = req.postData();
+      if (body) capturedDwrRequests.push({ url: req.url(), body });
+    }
+  };
   const handler = async resp => {
     if (resp.url().includes('findReserveTableDataV2')) {
       try { allDwrTexts.push(await resp.text()); } catch {}
     }
   };
+  page.on('request', reqHandler);
   page.on('response', handler);
 
   const SERVICE_URL = `https://1cs.jp/ucs/reserveService.do?StartupDate=${dateKey}`;
   await page.goto(SERVICE_URL, { waitUntil: 'domcontentloaded', timeout: 30_000 });
   await page.waitForTimeout(10_000);
+  page.off('request', reqHandler);
   page.off('response', handler);
 
   console.log(`  📡 DWRレスポンス: ${allDwrTexts.length}件`);
@@ -202,6 +215,23 @@ async function syncComingSoon() {
     }
 
     await context.storageState({ path: statePath });
+
+    // ── DWRセッション保存（Vercel Cron再生用） ──────────────────────
+    if (!PREVIEW && capturedDwrRequests.length > 0) {
+      const cookies = await context.cookies('https://1cs.jp');
+      const jsessionId = cookies.find(c => c.name === 'JSESSIONID')?.value;
+      if (jsessionId) {
+        await put('comingsoon-session.json', JSON.stringify({
+          savedAt: new Date().toISOString(),
+          jsessionId,
+          dwrRequests: capturedDwrRequests,
+        }, null, 2), {
+          access: 'public', addRandomSuffix: false, allowOverwrite: true,
+          token: process.env.BLOB_READ_WRITE_TOKEN,
+        });
+        console.log(`✅ DWRセッション保存 (${capturedDwrRequests.length}テンプレート)`);
+      }
+    }
 
     if (PREVIEW) console.log('\n[preview mode — Blob保存スキップ]');
     console.log(`\n✅ 完了 (${targetDates.length}日分)`);

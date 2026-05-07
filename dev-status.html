@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>hpb-calendar 開発状況</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: #0f1117;
+    color: #e2e8f0;
+    padding: 24px;
+  }
+  h1 {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: #f8fafc;
+    margin-bottom: 4px;
+  }
+  .subtitle { color: #94a3b8; font-size: 0.9rem; margin-bottom: 28px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+  .full { grid-column: 1 / -1; }
+  .card {
+    background: #1e2330;
+    border: 1px solid #2d3748;
+    border-radius: 12px;
+    padding: 20px;
+  }
+  .card h2 {
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #64748b;
+    margin-bottom: 16px;
+  }
+
+  /* ── フェーズ進捗 ── */
+  .phase-list { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+  .phase-item { display: flex; align-items: center; gap: 12px; }
+  .phase-dot {
+    width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+  }
+  .done { background: #22c55e; }
+  .wip  { background: #f59e0b; }
+  .todo { background: #334155; border: 1px solid #475569; }
+  .phase-label { font-size: 0.88rem; color: #cbd5e1; flex: 1; }
+  .phase-tag {
+    font-size: 0.72rem; padding: 2px 8px; border-radius: 9999px; font-weight: 600;
+  }
+  .tag-done { background: #14532d; color: #4ade80; }
+  .tag-wip  { background: #451a03; color: #fbbf24; }
+  .tag-todo { background: #1e293b; color: #64748b; }
+
+  /* ── API一覧 ── */
+  .api-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .api-item {
+    background: #0f1117; border: 1px solid #2d3748; border-radius: 6px;
+    padding: 7px 10px; font-size: 0.78rem;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .api-method {
+    font-size: 0.65rem; padding: 1px 5px; border-radius: 4px; font-weight: 700;
+    flex-shrink: 0;
+  }
+  .get  { background: #1d4ed8; color: #bfdbfe; }
+  .post { background: #15803d; color: #bbf7d0; }
+  .api-name { color: #94a3b8; }
+
+  /* ── Mermaid ── */
+  .mermaid { font-size: 13px; }
+
+  /* ── コンポーネントマップ ── */
+  .comp-section { margin-bottom: 14px; }
+  .comp-section h3 { font-size: 0.75rem; color: #64748b; text-transform: uppercase; margin-bottom: 8px; }
+  .comp-row { display: flex; flex-wrap: wrap; gap: 6px; }
+  .comp-chip {
+    background: #0f1117; border: 1px solid #334155; border-radius: 6px;
+    padding: 5px 10px; font-size: 0.78rem; color: #94a3b8;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .chip-dot { width: 6px; height: 6px; border-radius: 50%; }
+  .c-blue   { background: #3b82f6; }
+  .c-green  { background: #22c55e; }
+  .c-yellow { background: #f59e0b; }
+  .c-purple { background: #a855f7; }
+  .c-red    { background: #ef4444; }
+  .c-gray   { background: #475569; }
+
+  /* ── cron ── */
+  .cron-list { display: flex; flex-direction: column; gap: 10px; }
+  .cron-item {
+    background: #0f1117; border: 1px solid #2d3748; border-radius: 8px;
+    padding: 12px; display: flex; flex-direction: column; gap: 4px;
+  }
+  .cron-path { font-family: 'Courier New', monospace; font-size: 0.82rem; color: #7dd3fc; }
+  .cron-schedule {
+    font-family: 'Courier New', monospace; font-size: 0.75rem;
+    background: #1e293b; padding: 3px 8px; border-radius: 4px; color: #fbbf24;
+    align-self: flex-start;
+  }
+  .cron-desc { font-size: 0.78rem; color: #64748b; }
+
+  /* ── 外部連携 ── */
+  .ext-list { display: flex; flex-direction: column; gap: 8px; }
+  .ext-item {
+    display: flex; align-items: center; gap: 10px;
+    background: #0f1117; border: 1px solid #2d3748; border-radius: 8px;
+    padding: 10px 12px;
+  }
+  .ext-icon { font-size: 1.2rem; }
+  .ext-info { display: flex; flex-direction: column; }
+  .ext-name { font-size: 0.85rem; font-weight: 600; color: #e2e8f0; }
+  .ext-detail { font-size: 0.75rem; color: #64748b; }
+  .ext-badge {
+    margin-left: auto; font-size: 0.7rem; padding: 2px 7px; border-radius: 9999px;
+  }
+  .b-playwright { background: #312e81; color: #a5b4fc; }
+  .b-api        { background: #14532d; color: #4ade80; }
+  .b-email      { background: #7c2d12; color: #fdba74; }
+
+  /* ── Stat cards ── */
+  .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 20px; }
+  .stat-card {
+    background: #1e2330; border: 1px solid #2d3748; border-radius: 12px;
+    padding: 16px; text-align: center;
+  }
+  .stat-value { font-size: 2rem; font-weight: 800; color: #f8fafc; }
+  .stat-label { font-size: 0.78rem; color: #64748b; margin-top: 4px; }
+  .stat-sub   { font-size: 0.7rem; color: #475569; margin-top: 2px; }
+</style>
+</head>
+<body>
+
+<h1>📊 hpb-calendar 開発状況</h1>
+<p class="subtitle">monthcolor-reservation — 2026-05-05 現在</p>
+
+<!-- stat bar -->
+<div class="stat-grid">
+  <div class="stat-card">
+    <div class="stat-value" style="color:#22c55e">8</div>
+    <div class="stat-label">完了フェーズ</div>
+    <div class="stat-sub">Phase 1〜8</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value" style="color:#3b82f6">15</div>
+    <div class="stat-label">API エンドポイント</div>
+    <div class="stat-sub">Vercel Serverless</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value" style="color:#f59e0b">2</div>
+    <div class="stat-label">Cron ジョブ</div>
+    <div class="stat-sub">毎分 & 毎日10時</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value" style="color:#a855f7">3</div>
+    <div class="stat-label">外部連携</div>
+    <div class="stat-sub">HPB / 1cs.jp / Gmail</div>
+  </div>
+</div>
+
+<div class="grid">
+
+  <!-- フェーズ進捗 -->
+  <div class="card">
+    <h2>開発フェーズ</h2>
+    <ul class="phase-list">
+      <li class="phase-item">
+        <span class="phase-dot done"></span>
+        <span class="phase-label">Phase 1 — メールパース &amp; カレンダー同期</span>
+        <span class="phase-tag tag-done">完了</span>
+      </li>
+      <li class="phase-item">
+        <span class="phase-dot done"></span>
+        <span class="phase-label">Phase 2 — 双方向同期（ダブルブッキング防止）</span>
+        <span class="phase-tag tag-done">完了</span>
+      </li>
+      <li class="phase-item">
+        <span class="phase-dot done"></span>
+        <span class="phase-label">Phase 3 — Web UI（管理画面・受付）</span>
+        <span class="phase-tag tag-done">完了</span>
+      </li>
+      <li class="phase-item">
+        <span class="phase-dot done"></span>
+        <span class="phase-label">Phase 4 — チェックイン・チェックアウト</span>
+        <span class="phase-tag tag-done">完了</span>
+      </li>
+      <li class="phase-item">
+        <span class="phase-dot done"></span>
+        <span class="phase-label">Phase 5 — 領収書再発行</span>
+        <span class="phase-tag tag-done">完了</span>
+      </li>
+      <li class="phase-item">
+        <span class="phase-dot done"></span>
+        <span class="phase-label">Phase 6 — LINE通知</span>
+        <span class="phase-tag tag-done">完了</span>
+      </li>
+      <li class="phase-item">
+        <span class="phase-dot done"></span>
+        <span class="phase-label">Phase 7 — 顧客カルテ・メモ機能</span>
+        <span class="phase-tag tag-done">完了</span>
+      </li>
+      <li class="phase-item">
+        <span class="phase-dot done"></span>
+        <span class="phase-label">Phase 8 — coming-soon Cron 毎分自動同期</span>
+        <span class="phase-tag tag-done">完了</span>
+      </li>
+      <li class="phase-item">
+        <span class="phase-dot wip"></span>
+        <span class="phase-label">Phase 9 — Slack / LINE Bot 指示連携</span>
+        <span class="phase-tag tag-todo">未着手</span>
+      </li>
+    </ul>
+  </div>
+
+  <!-- 外部連携 -->
+  <div class="card">
+    <h2>外部連携</h2>
+    <div class="ext-list">
+      <div class="ext-item">
+        <span class="ext-icon">💈</span>
+        <div class="ext-info">
+          <span class="ext-name">SALON BOARD (HPB)</span>
+          <span class="ext-detail">予約登録・空き枠取得 / Firefox Playwright</span>
+        </div>
+        <span class="ext-badge b-playwright">Playwright</span>
+      </div>
+      <div class="ext-item">
+        <span class="ext-icon">📅</span>
+        <div class="ext-info">
+          <span class="ext-name">coming-soon (1cs.jp)</span>
+          <span class="ext-detail">予約一覧取得 / DWR API 毎分 Cron</span>
+        </div>
+        <span class="ext-badge b-playwright">Playwright</span>
+      </div>
+      <div class="ext-item">
+        <span class="ext-icon">📧</span>
+        <div class="ext-info">
+          <span class="ext-name">Gmail (HPB通知メール)</span>
+          <span class="ext-detail">予約通知・変更・キャンセルをパース</span>
+        </div>
+        <span class="ext-badge b-email">Email</span>
+      </div>
+      <div class="ext-item">
+        <span class="ext-icon">📤</span>
+        <div class="ext-info">
+          <span class="ext-name">Resend (メール送信)</span>
+          <span class="ext-detail">予約確認・リマインダー送信</span>
+        </div>
+        <span class="ext-badge b-api">API</span>
+      </div>
+      <div class="ext-item">
+        <span class="ext-icon">💬</span>
+        <div class="ext-info">
+          <span class="ext-name">LINE Notify</span>
+          <span class="ext-detail">チェックアウト時スタッフへ通知</span>
+        </div>
+        <span class="ext-badge b-api">API</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- システムアーキテクチャ図 -->
+<div class="card full" style="margin-bottom:20px">
+  <h2>システムアーキテクチャ</h2>
+  <div class="mermaid">
+graph TB
+    subgraph Client["🖥 フロントエンド (HTML)"]
+        A[admin.html<br/>管理画面]
+        B[register.html<br/>受付]
+        C[reservation.html<br/>予約フォーム]
+        D[report.html<br/>売上レポート]
+        E[customers.html<br/>顧客管理]
+    end
+
+    subgraph Vercel["☁️ Vercel Serverless"]
+        direction TB
+        subgraph APIs["API Layer"]
+            R1[/api/reservations]
+            R2[/api/reserve]
+            R3[/api/checkin]
+            R4[/api/checkout]
+            R5[/api/slots]
+            R6[/api/customers]
+            R7[/api/sales]
+            R8[/api/comingsoon-date]
+        end
+        subgraph Crons["Cron Jobs"]
+            C1[cron-cs-sync<br/>毎分]
+            C2[cron-remind<br/>毎日10:00]
+        end
+        BlobStore[(Vercel Blob<br/>予約DB・セッション<br/>空き枠キャッシュ)]
+    end
+
+    subgraph External["🌐 外部サービス"]
+        HPB[SALON BOARD<br/>HPB]
+        CS[coming-soon<br/>1cs.jp]
+        GM[Gmail<br/>HPB通知]
+        RS[Resend<br/>メール送信]
+        LN[LINE Notify]
+    end
+
+    Client --> APIs
+    APIs --> BlobStore
+    Crons --> BlobStore
+    C1 -->|DWR APIポーリング| CS
+    C2 -->|メール送信| RS
+    R2 -->|Playwright自動登録| HPB
+    R5 -->|Playwright空き枠取得| HPB
+    GM -->|メール解析| BlobStore
+    R4 -->|通知| LN
+
+    style Client fill:#1e3a5f,stroke:#3b82f6
+    style Vercel fill:#1a2e1a,stroke:#22c55e
+    style External fill:#3b1515,stroke:#ef4444
+    style BlobStore fill:#2d1f4e,stroke:#a855f7
+  </div>
+</div>
+
+<!-- データフロー図 -->
+<div class="card full" style="margin-bottom:20px">
+  <h2>データフロー（予約の一生）</h2>
+  <div class="mermaid">
+sequenceDiagram
+    actor 顧客
+    participant CS as coming-soon<br/>(1cs.jp)
+    participant Cron as Vercel Cron<br/>(毎分)
+    participant Blob as Vercel Blob
+    participant Admin as admin.html
+    participant HPB as SALON BOARD
+    participant LINE as LINE Notify
+
+    顧客->>CS: 予約入力
+    Cron->>CS: DWR APIポーリング
+    CS-->>Cron: 予約データ返却
+    Cron->>Blob: キャッシュ保存
+    Cron->>HPB: Playwright自動登録
+    HPB-->>顧客: HPB確認メール
+
+    Note over Admin,Blob: 当日オペレーション
+    Admin->>Blob: 本日予約一覧取得
+    Blob-->>Admin: 予約リスト表示
+    Admin->>Blob: チェックイン記録
+    Admin->>Blob: チェックアウト・決済記録
+    Blob-->>LINE: 会計完了通知
+  </div>
+</div>
+
+<div class="grid">
+
+  <!-- API一覧 -->
+  <div class="card">
+    <h2>API エンドポイント (15個)</h2>
+    <div class="api-grid">
+      <div class="api-item"><span class="api-method get">GET</span><span class="api-name">/api/reservations</span></div>
+      <div class="api-item"><span class="api-method post">POST</span><span class="api-name">/api/reserve</span></div>
+      <div class="api-item"><span class="api-method post">POST</span><span class="api-name">/api/checkin</span></div>
+      <div class="api-item"><span class="api-method post">POST</span><span class="api-name">/api/checkout</span></div>
+      <div class="api-item"><span class="api-method get">GET</span><span class="api-name">/api/slots</span></div>
+      <div class="api-item"><span class="api-method get">GET</span><span class="api-name">/api/customers</span></div>
+      <div class="api-item"><span class="api-method post">POST</span><span class="api-name">/api/customer-note</span></div>
+      <div class="api-item"><span class="api-method get">GET</span><span class="api-name">/api/sales</span></div>
+      <div class="api-item"><span class="api-method post">POST</span><span class="api-name">/api/receipt</span></div>
+      <div class="api-item"><span class="api-method post">POST</span><span class="api-name">/api/admin-action</span></div>
+      <div class="api-item"><span class="api-method get">GET</span><span class="api-name">/api/comingsoon-today</span></div>
+      <div class="api-item"><span class="api-method get">GET</span><span class="api-name">/api/comingsoon-date</span></div>
+      <div class="api-item"><span class="api-method get">GET</span><span class="api-name">/api/today-reservations</span></div>
+      <div class="api-item"><span class="api-method get">GET</span><span class="api-name">/api/cron-cs-sync</span></div>
+      <div class="api-item"><span class="api-method get">GET</span><span class="api-name">/api/cron-remind</span></div>
+    </div>
+  </div>
+
+  <!-- Cronジョブ -->
+  <div class="card">
+    <h2>Cron ジョブ</h2>
+    <div class="cron-list">
+      <div class="cron-item">
+        <span class="cron-path">/api/cron-cs-sync</span>
+        <span class="cron-schedule">* * * * *（毎分）</span>
+        <span class="cron-desc">coming-soon (1cs.jp) の予約データをDWR APIでポーリングし Vercel Blob にキャッシュ。セッション Cookie も自動更新。</span>
+      </div>
+      <div class="cron-item">
+        <span class="cron-path">/api/cron-remind</span>
+        <span class="cron-schedule">0 10 * * *（毎日10:00）</span>
+        <span class="cron-desc">当日予約のリマインダーメールを顧客に Resend 経由で送信。</span>
+      </div>
+    </div>
+
+    <div style="margin-top:20px">
+      <h2 style="margin-bottom:12px">コンポーネント構成</h2>
+      <div class="comp-section">
+        <h3>フロントエンド</h3>
+        <div class="comp-row">
+          <span class="comp-chip"><span class="chip-dot c-blue"></span>admin.html</span>
+          <span class="comp-chip"><span class="chip-dot c-blue"></span>register.html</span>
+          <span class="comp-chip"><span class="chip-dot c-blue"></span>reservation.html</span>
+          <span class="comp-chip"><span class="chip-dot c-blue"></span>report.html</span>
+          <span class="comp-chip"><span class="chip-dot c-blue"></span>customers.html</span>
+        </div>
+      </div>
+      <div class="comp-section">
+        <h3>バックエンド（ローカル）</h3>
+        <div class="comp-row">
+          <span class="comp-chip"><span class="chip-dot c-green"></span>server.js</span>
+          <span class="comp-chip"><span class="chip-dot c-green"></span>worker.js</span>
+          <span class="comp-chip"><span class="chip-dot c-green"></span>sync_slots.js</span>
+          <span class="comp-chip"><span class="chip-dot c-green"></span>sync_comingsoon.js</span>
+          <span class="comp-chip"><span class="chip-dot c-green"></span>sync_from_email.js</span>
+        </div>
+      </div>
+      <div class="comp-section">
+        <h3>ストレージ</h3>
+        <div class="comp-row">
+          <span class="comp-chip"><span class="chip-dot c-purple"></span>Vercel Blob (予約DB)</span>
+          <span class="comp-chip"><span class="chip-dot c-purple"></span>.state/ (セッション)</span>
+        </div>
+      </div>
+      <div class="comp-section">
+        <h3>インフラ</h3>
+        <div class="comp-row">
+          <span class="comp-chip"><span class="chip-dot c-yellow"></span>Vercel Serverless</span>
+          <span class="comp-chip"><span class="chip-dot c-yellow"></span>Vercel Cron</span>
+          <span class="comp-chip"><span class="chip-dot c-yellow"></span>GitHub Actions</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'dark',
+    themeVariables: {
+      primaryColor: '#1e3a5f',
+      primaryTextColor: '#e2e8f0',
+      primaryBorderColor: '#3b82f6',
+      lineColor: '#475569',
+      secondaryColor: '#1a2e1a',
+      tertiaryColor: '#2d1f4e',
+      background: '#1e2330',
+      mainBkg: '#1e2330',
+      nodeBorder: '#475569',
+      clusterBkg: '#0f1117',
+      titleColor: '#f8fafc',
+      edgeLabelBackground: '#1e2330',
+      actorBkg: '#1e2330',
+      actorBorder: '#475569',
+      actorTextColor: '#e2e8f0',
+      signalColor: '#64748b',
+      signalTextColor: '#cbd5e1',
+      labelBoxBkgColor: '#1e2330',
+      labelBoxBorderColor: '#475569',
+      labelTextColor: '#e2e8f0',
+      loopTextColor: '#e2e8f0',
+      noteBorderColor: '#475569',
+      noteBkgColor: '#0f1117',
+      noteTextColor: '#94a3b8',
+      activationBorderColor: '#3b82f6',
+      activationBkgColor: '#1e3a5f',
+    },
+    sequence: { diagramMarginX: 20, diagramMarginY: 20, actorMargin: 60 },
+    flowchart: { curve: 'basis' }
+  });
+</script>
+</body>
+</html>
