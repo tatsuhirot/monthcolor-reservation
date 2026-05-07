@@ -243,6 +243,41 @@ body { font-family: "Hiragino Sans", Meiryo, sans-serif; background: #f0f2f0; co
 @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:.25} }
 .live-dot { color: #4caf50; animation: pulse-dot 2s ease-in-out infinite; margin-left: 4px; }
 
+/* ── CS行クリック ── */
+.cs-row { cursor: pointer; }
+.cs-row:hover td { background: #e8f5e9 !important; }
+
+/* ── 週間サマリー ── */
+.week-summary__title { font-size: 12px; font-weight: 700; color: #2d6a31; margin-bottom: 6px; }
+.week-day-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 5px 0; border-bottom: 1px solid #f0f0f0; font-size: 12px;
+}
+.week-day-row:last-child { border-bottom: none; }
+.week-day-label { color: #555; }
+.week-day-label.today { font-weight: 700; color: #1b5e20; }
+.week-day-count { font-weight: 700; color: #2d6a31; }
+.week-day-count.zero { color: #bbb; font-weight: 400; }
+
+/* ── CS詳細モーダル ── */
+.detail-grid {
+  display: grid; grid-template-columns: 80px 1fr;
+  gap: 8px 12px; align-items: start;
+}
+.detail-label { font-size: 12px; color: #888; padding-top: 2px; white-space: nowrap; }
+.detail-value { font-size: 13px; color: #222; }
+.detail-visit-badge {
+  display: inline-block; background: #e8f5e9; color: #2d6a31;
+  font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 10px; margin-left: 6px;
+}
+.detail-note-area {
+  width: 100%; min-height: 72px; padding: 8px 10px;
+  border: 1px solid #ddd; border-radius: 7px; font-size: 13px;
+  font-family: inherit; resize: vertical; outline: none;
+  transition: border-color .2s; margin-top: 4px;
+}
+.detail-note-area:focus { border-color: #4caf50; }
+
 /* ── キューカード ── */
 .queue-head {
   display: flex; align-items: center; gap: 12px; margin-bottom: 12px;
@@ -457,6 +492,12 @@ body { font-family: "Hiragino Sans", Meiryo, sans-serif; background: #f0f2f0; co
         <div style="font-size:11px;color:#999;margin-top:2px" id="sbCountDate"></div>
       </div>
 
+      <!-- 週間サマリー -->
+      <div>
+        <div class="week-summary__title">今後7日間 (CS)</div>
+        <div id="weekSummaryList" style="color:#bbb;font-size:12px">読み込み中...</div>
+      </div>
+
       <!-- クイックナビ -->
       <nav class="sidebar-nav">
         <button class="sidebar-nav__item active" onclick="scrollToSection('csSection',this)">
@@ -547,6 +588,25 @@ body { font-family: "Hiragino Sans", Meiryo, sans-serif; background: #f0f2f0; co
     </div><!-- /main-content -->
   </div><!-- /page-body -->
 </div><!-- /mainScreen -->
+
+<!-- ══ CS予約詳細モーダル ══ -->
+<div class="modal-overlay" id="csDetailModal">
+  <div class="modal" style="max-width:520px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <h2 style="margin:0;font-size:16px">📋 CS予約 詳細</h2>
+      <button onclick="closeCsDetail()" style="background:none;border:none;font-size:22px;cursor:pointer;color:#aaa;line-height:1;padding:0">✕</button>
+    </div>
+    <div class="detail-grid" id="csDetailGrid"></div>
+    <div style="margin-top:16px">
+      <div style="font-size:12px;color:#888;margin-bottom:2px">スタッフメモ</div>
+      <textarea class="detail-note-area" id="csDetailNote" placeholder="メモを入力..."></textarea>
+    </div>
+    <div class="modal-actions" style="margin-top:12px">
+      <button class="btn-ghost" onclick="closeCsDetail()">閉じる</button>
+      <button class="btn-primary" id="csNoteBtn" onclick="saveCsNote()">メモ保存</button>
+    </div>
+  </div>
+</div>
 
 <!-- ══ キャンセル確認モーダル ══ -->
 <div class="modal-overlay" id="cancelModal">
@@ -640,6 +700,9 @@ let password = '';
 let currentFilter = 'all';
 let reservations  = [];
 let pendingCancelId = null;
+let csCurrentList = [];
+let csDetailPhone = '';
+let csDetailName  = '';
 
 /* 表示日付 */
 let viewDate = new Date();
@@ -692,6 +755,7 @@ async function login() {
   loadSyncTime();
   loadComingsoonReservations();
   loadTodayReservations();
+  loadWeekSummary();
 }
 
 function logout() {
@@ -1019,7 +1083,7 @@ async function submitNew() {
 }
 
 /* ══ モーダル外クリック ══ */
-['cancelModal','editModal','newModal'].forEach(id => {
+['cancelModal','editModal','newModal','csDetailModal'].forEach(id => {
   const el = document.getElementById(id);
   el.addEventListener('click', e => {
     if (e.target !== e.currentTarget) return;
@@ -1135,16 +1199,18 @@ async function loadComingsoonReservations(silent = false) {
       const msg = data.message || '予約なし（または未同期）';
       content.innerHTML = `<div class="sb-empty">${msg}<br><small>Vercelが毎分・GitHub Actionsが毎日7日分を自動同期します</small></div>`;
     } else {
+      csCurrentList = list;
       content.innerHTML = `
         <table class="sb-table">
-          <thead><tr><th>時間</th><th>お客様</th><th>メニュー</th><th>電話</th></tr></thead>
+          <thead><tr><th>時間</th><th>お客様</th><th>メニュー</th><th>電話</th><th style="width:32px"></th></tr></thead>
           <tbody>
-            ${list.map(r => `
-              <tr>
+            ${list.map((r, i) => `
+              <tr class="cs-row" onclick="openCsDetail(${i})">
                 <td><span class="sb-time">${r.timeRange || r.time}</span></td>
                 <td><strong>${r.name || '—'}</strong><br><small style="color:#888">${r.nameKana || ''}</small></td>
                 <td><span class="sb-menu">${r.menu || '—'}</span></td>
                 <td><small>${r.phone || '—'}</small></td>
+                <td style="color:#bbb;font-size:14px">›</td>
               </tr>
             `).join('')}
           </tbody>
@@ -1208,6 +1274,105 @@ async function loadTodayReservations() {
   } catch {
     content.innerHTML = '<div class="sb-empty">データ取得エラー</div>';
   }
+}
+
+/* ══ CS予約詳細モーダル ══ */
+function openCsDetail(i) {
+  const r = csCurrentList[i];
+  if (!r) return;
+  csDetailPhone = r.phone || '';
+  csDetailName  = r.name  || '';
+
+  const visitLabel = r.visitCount === 0 ? '初回' : r.visitCount <= 2 ? 'リピート' : '常連';
+  document.getElementById('csDetailGrid').innerHTML = `
+    <span class="detail-label">時間</span>
+    <span class="detail-value"><strong>${r.timeRange || r.time || '—'}</strong></span>
+    <span class="detail-label">お名前</span>
+    <span class="detail-value">${r.name || '—'} <span style="color:#888;font-size:12px">${r.nameKana || ''}</span></span>
+    <span class="detail-label">メニュー</span>
+    <span class="detail-value">${r.menu || '—'}</span>
+    <span class="detail-label">電話</span>
+    <span class="detail-value">${r.phone ? `<a href="tel:${r.phone}" style="color:#2d6a31">${r.phone}</a>` : '—'}</span>
+    <span class="detail-label">メール</span>
+    <span class="detail-value">${r.email ? `<a href="mailto:${r.email}" style="color:#2d6a31">${r.email}</a>` : '—'}</span>
+    <span class="detail-label">来店回数</span>
+    <span class="detail-value">${r.visitCount !== undefined
+      ? `${r.visitCount}回<span class="detail-visit-badge">${visitLabel}</span>`
+      : '—'}</span>
+    <span class="detail-label">顧客備考</span>
+    <span class="detail-value">${r.note || '<span style="color:#bbb">なし</span>'}</span>
+  `;
+
+  const noteEl = document.getElementById('csDetailNote');
+  const noteBtn = document.getElementById('csNoteBtn');
+  noteEl.value = '読み込み中...';
+  noteEl.disabled = true;
+  noteBtn.disabled = true;
+  document.getElementById('csDetailModal').classList.add('open');
+
+  const qs = csDetailPhone
+    ? `phone=${encodeURIComponent(csDetailPhone)}`
+    : `name=${encodeURIComponent(csDetailName)}`;
+  fetch(`/api/customer-note?${qs}`, { headers: { Authorization: `Bearer ${password}` } })
+    .then(res => res.json())
+    .then(d => { noteEl.value = d.note || ''; })
+    .catch(() => { noteEl.value = ''; })
+    .finally(() => { noteEl.disabled = false; noteBtn.disabled = false; });
+}
+
+function closeCsDetail() {
+  document.getElementById('csDetailModal').classList.remove('open');
+}
+
+async function saveCsNote() {
+  const note = document.getElementById('csDetailNote').value;
+  const btn  = document.getElementById('csNoteBtn');
+  btn.disabled = true; btn.textContent = '保存中...';
+  try {
+    const res = await fetch('/api/customer-note', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${password}` },
+      body: JSON.stringify({ phone: csDetailPhone, name: csDetailName, note }),
+    });
+    if (!res.ok) { showToast('メモ保存失敗', true); return; }
+    showToast('✅ メモを保存しました');
+    closeCsDetail();
+  } catch { showToast('通信エラー', true); }
+  finally { btn.disabled = false; btn.textContent = 'メモ保存'; }
+}
+
+/* ══ 週間サマリー ══ */
+async function loadWeekSummary() {
+  const el = document.getElementById('weekSummaryList');
+  const today = new Date(); today.setHours(0,0,0,0);
+  const DOW = ['日','月','火','水','木','金','土'];
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(today.getTime() + i * 86400000);
+    return {
+      date: csFmtDate(d),
+      label: `${d.getMonth()+1}/${d.getDate()}(${DOW[d.getDay()]})`,
+      isToday: i === 0,
+    };
+  });
+
+  const results = await Promise.allSettled(
+    days.map(({ date }) =>
+      fetch(`/api/comingsoon-date?date=${date}`, {
+        headers: { Authorization: `Bearer ${password}` },
+      }).then(r => r.json()).catch(() => ({ reservations: [] }))
+    )
+  );
+
+  el.innerHTML = days.map(({ label, isToday }, i) => {
+    const data  = results[i].status === 'fulfilled' ? results[i].value : {};
+    const count = (data.reservations || []).length;
+    return `
+      <div class="week-day-row">
+        <span class="week-day-label${isToday ? ' today' : ''}">${label}</span>
+        <span class="week-day-count${count === 0 ? ' zero' : ''}">${count === 0 ? '—' : count + '件'}</span>
+      </div>
+    `;
+  }).join('');
 }
 
 /* ══ ユーティリティ ══ */

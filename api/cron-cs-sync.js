@@ -95,6 +95,54 @@ function isSessionValid(dwrText) {
   return true;
 }
 
+// ── スタッフ変更通知メール ────────────────────────────────────────
+async function notifyStaff(newList, prevList, dateStr) {
+  const apiKey = process.env.RESEND_API_KEY;
+  const to     = process.env.STAFF_NOTIFY_EMAIL;
+  if (!apiKey || !to) return; // 環境変数未設定時はスキップ
+
+  const prevIds = new Set(prevList.map(r => r.id));
+  const newIds  = new Set(newList.map(r => r.id));
+
+  const added   = newList.filter(r => !prevIds.has(r.id));
+  const removed = prevList.filter(r => !newIds.has(r.id));
+
+  if (added.length === 0 && removed.length === 0) return;
+
+  const row = r => `<tr>
+    <td style="padding:4px 10px;border-bottom:1px solid #eee">${r.time}</td>
+    <td style="padding:4px 10px;border-bottom:1px solid #eee">${r.name}</td>
+    <td style="padding:4px 10px;border-bottom:1px solid #eee">${r.menu}</td>
+    <td style="padding:4px 10px;border-bottom:1px solid #eee">${r.phone || '—'}</td>
+  </tr>`;
+  const thead = `<tr style="background:#f5f5f5"><th style="padding:4px 10px">時間</th><th>お名前</th><th>メニュー</th><th>電話</th></tr>`;
+
+  let html = `<p style="font-family:sans-serif;font-size:14px"><strong>${dateStr}</strong> の予約に変更がありました。</p>`;
+  if (added.length > 0) {
+    html += `<h3 style="color:#2d6a31;font-family:sans-serif">✅ 新規予約 ${added.length}件</h3>
+    <table style="border-collapse:collapse;font-size:13px;font-family:sans-serif">${thead}${added.map(row).join('')}</table>`;
+  }
+  if (removed.length > 0) {
+    html += `<h3 style="color:#c00;font-family:sans-serif">❌ キャンセル ${removed.length}件</h3>
+    <table style="border-collapse:collapse;font-size:13px;font-family:sans-serif">${thead}${removed.map(row).join('')}</table>`;
+  }
+
+  await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      from: process.env.MAIL_FROM || 'onboarding@resend.dev',
+      to,
+      subject: `[MONTH COLOR] ${dateStr} 予約変更通知（${added.length > 0 ? `+${added.length}` : ''}${removed.length > 0 ? ` -${removed.length}` : ''}）`,
+      html,
+    }),
+    signal: AbortSignal.timeout(10_000),
+  });
+}
+
 module.exports = async function handler(req, res) {
   // Vercel Cron 認証（CRON_SECRET は Vercel が自動注入）
   const authHeader = req.headers['authorization'] || '';
@@ -177,12 +225,14 @@ module.exports = async function handler(req, res) {
 
     // ── 既存データと比較して変化があれば保存 ────────────────────────
     let changed = true;
+    let prevReservations = [];
     const existingMeta = await head(`comingsoon-${dateStr}.json`, {
       token: process.env.BLOB_READ_WRITE_TOKEN,
     });
     if (existingMeta) {
       const existing = await fetch(existingMeta.url).then(r => r.json());
-      if (JSON.stringify(existing.reservations) === JSON.stringify(allReservations)) {
+      prevReservations = existing.reservations || [];
+      if (JSON.stringify(prevReservations) === JSON.stringify(allReservations)) {
         changed = false;
       }
     }
@@ -204,6 +254,13 @@ module.exports = async function handler(req, res) {
           token: process.env.BLOB_READ_WRITE_TOKEN,
         }),
       ]);
+    }
+
+    // ── 変更があればスタッフ通知 ──────────────────────────────────
+    if (changed) {
+      notifyStaff(allReservations, prevReservations, dateStr).catch(e =>
+        console.error('notify error:', e.message)
+      );
     }
 
     return res.status(200).json({
