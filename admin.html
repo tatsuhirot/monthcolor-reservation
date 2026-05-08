@@ -295,6 +295,16 @@ body { font-family: "Hiragino Sans", Meiryo, sans-serif; background: #f0f2f0; co
   padding: 3px 6px; font-size: 11px;
   text-align: left; box-sizing: border-box; overflow: hidden;
 }
+.sched-booked-direct {
+  display: block; width: 100%; height: 100%; min-height: 24px;
+  background: #fff3e0; color: #e65100;
+  border-left: 3px solid #ff9800;
+  padding: 3px 6px; font-size: 11px; font-weight: 600;
+  text-align: left; box-sizing: border-box; overflow: hidden;
+}
+.sched-booked-direct .sched-range {
+  display: block; font-size: 10px; font-weight: 400; opacity: .8; margin-top: 1px;
+}
 .sched-th-lane {
   background: #fafafa; border: 1px solid #e8e8e8;
   padding: 3px 4px; font-size: 10px; color: #bbb;
@@ -698,7 +708,8 @@ body { font-family: "Hiragino Sans", Meiryo, sans-serif; background: #f0f2f0; co
           <button class="sb-refresh-btn" onclick="loadSchedule()">🔄</button>
           <div class="sched-legend">
             <span><span class="sched-legend-dot" style="background:#2d6a31"></span>CS予約</span>
-            <span><span class="sched-legend-dot" style="background:#5c6bc0"></span>SalonBoard</span>
+            <span><span class="sched-legend-dot" style="background:#5c6bc0"></span>SB(HPB)</span>
+            <span><span class="sched-legend-dot" style="background:#ff9800"></span>直接/電話</span>
             <span><span class="sched-legend-dot" style="background:#e8e8e8;border:1px dashed #ccc"></span>空き</span>
           </div>
         </div>
@@ -1731,7 +1742,11 @@ async function loadSchedule() {
 
     // サービス種別ごとに予約をレーン（並列列）に振り分ける
     const COL_ORDER = ['カラー', 'ホワイトニング', 'まつ毛パーマ', 'ドライヘッドスパ', 'カット', 'パーマ', 'トリートメント', 'その他'];
+    // 実際の最大枠数（空きレーンを常に表示するための上限）
+    const ST_CAPACITY = { 'カラー': 6, 'ホワイトニング': 1, 'まつ毛パーマ': 2, 'ドライヘッドスパ': 1 };
     const usedSts = new Set(allEntries.map(r => getServiceType(r.menu)));
+    // 予約がなくても容量定義があるサービスは表示する
+    for (const st of Object.keys(ST_CAPACITY)) usedSts.add(st);
     const serviceTypes = COL_ORDER.filter(st => usedSts.has(st));
     if (serviceTypes.length === 0) serviceTypes.push('その他');
 
@@ -1758,7 +1773,7 @@ async function loadSchedule() {
         if (assigned === -1) { assigned = laneEndMins.length; laneEndMins.push(endMins); }
         entryLane.set(r, assigned);
       }
-      stLaneCounts[st] = laneEndMins.length || 1;
+      stLaneCounts[st] = Math.max(laneEndMins.length, ST_CAPACITY[st] || 1);
     }
 
     // colGrid[st][laneIdx][slotIdx] = {span, r}
@@ -1822,8 +1837,14 @@ async function loadSchedule() {
               const safeName = (r.name || '—').replace(/'/g, "\\'");
               const range = r.timeRange ? `<span class="sched-range">${r.timeRange}</span>` : '';
               block = `<div class="sched-booked-cs" onclick="openCsDetailByRef('${safeName}','${dateStr}')" title="${r.menu||''}">${r.name||'—'}${range}</div>`;
+            } else if (r.source === 'direct') {
+              // SalonBoard 直接/電話予約（HPBなし）
+              const label = r.customerName && r.customerName !== '—' ? r.customerName : (r.menu || '直接');
+              const range = r.timeRange && r.timeRange.includes('-') ? `<span class="sched-range">${r.timeRange}</span>` : '';
+              block = `<div class="sched-booked-direct" title="${r.menu||'直接予約'}">${label}${range}</div>`;
             } else {
-              block = `<div class="sched-booked-sb" title="${r.menu||''}">${r.name||r.menu||'SB'}</div>`;
+              // SalonBoard HPB予約
+              block = `<div class="sched-booked-sb" title="${r.menu||''}">${r.name||r.customerName||r.menu||'SB'}</div>`;
             }
             tds += `<td class="sched-cell" rowspan="${span}">${block}</td>`;
           } else {

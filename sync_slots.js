@@ -70,22 +70,35 @@ function parseStylistMap(html) {
 }
 
 // SalonBoard スケジュール画面から予約済みブロックを抽出
+// HPB予約（hpbId あり）も直接/電話予約（hpbId なし）も両方取得する
 function parseReservations(html, stylistMap) {
   const reservations = [];
-  const re = /id="(reserve_item_\w+)"([\s\S]*?)(?=id="reserve_item_|id="empty_time_|$)/g;
+  const re = /id="(reserve_item_\w+)"([\s\S]*?)(?=id="reserve_item_|id="empty_time_|<\/div>\s*<\/div>|$)/g;
   let m;
   while ((m = re.exec(html)) !== null) {
-    const block = m[2];
+    const block     = m[2];
     const hpbId     = extractSpan(block, 'panel_reserve_id');
     const rawDate   = extractSpan(block, 'panel_reserve_date');
     const rawStart  = extractSpan(block, 'panel_reserve_start');
+    const rawEnd    = extractSpan(block, 'panel_reserve_end');
     const stylistId = extractSpan(block, 'panel_reserve_stylistId');
-    if (!hpbId) continue;
+    const customer  = extractCustomer(block);
+
+    // 日付・開始時刻が取れない不正ブロックはスキップ
+    if (!rawDate || !rawStart) continue;
+
+    const startTime = fmtTime4(rawStart);
+    const endTime   = rawEnd ? fmtTime4(rawEnd) : '';
+    const timeRange = endTime ? `${startTime}-${endTime}` : startTime;
+
     reservations.push({
-      hpbId,
+      hpbId:    hpbId || null,
+      source:   hpbId ? 'hpb' : 'direct',  // 'hpb' = HPB経由 / 'direct' = 電話・店頭
       date:     fmtDate8(rawDate),
-      time:     fmtTime4(rawStart),
-      menuName: (stylistMap && stylistMap[stylistId]) || stylistId,
+      time:     startTime,
+      timeRange,
+      menuName: (stylistMap && stylistMap[stylistId]) || stylistId || '—',
+      customerName: customer || '—',
     });
   }
   return reservations.sort((a, b) => a.time.localeCompare(b.time));
