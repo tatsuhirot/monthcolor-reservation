@@ -326,6 +326,28 @@ body { font-family: "Hiragino Sans", Meiryo, sans-serif; background: #f0f2f0; co
 .week-day-count { font-weight: 700; color: #2d6a31; }
 .week-day-count.zero { color: #bbb; font-weight: 400; }
 
+/* ── メニュー別集計 ── */
+.menu-breakdown__title { font-size: 12px; font-weight: 700; color: #2d6a31; margin-bottom: 6px; }
+.menu-breakdown__row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 5px 0; border-bottom: 1px solid #f0f0f0; font-size: 12px;
+}
+.menu-breakdown__row:last-child { border-bottom: none; }
+.menu-breakdown__label { color: #555; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 72px; max-width: 90px; }
+.menu-breakdown__bar-wrap { flex: 1; margin: 0 8px; height: 5px; background: #f0f0f0; border-radius: 3px; overflow: hidden; }
+.menu-breakdown__bar { height: 100%; border-radius: 3px; transition: width .4s ease; }
+.menu-breakdown__count { font-weight: 700; color: #2d6a31; min-width: 18px; text-align: right; }
+
+/* ── キャンセル検知行 ── */
+.cs-row-cancelled {
+  background: #fff5f5; color: #999;
+}
+.cs-row-cancelled td { text-decoration: line-through; }
+.cs-cancelled-badge {
+  display: inline-block; background: #ffebee; color: #c62828;
+  font-size: 10px; font-weight: 700; padding: 1px 5px; border-radius: 4px; margin-left: 4px;
+}
+
 /* ── CS詳細モーダル ── */
 .detail-grid {
   display: grid; grid-template-columns: 80px 1fr;
@@ -563,6 +585,12 @@ body { font-family: "Hiragino Sans", Meiryo, sans-serif; background: #f0f2f0; co
       <div>
         <div class="week-summary__title">今後7日間 (CS)</div>
         <div id="weekSummaryList" style="color:#bbb;font-size:12px">読み込み中...</div>
+      </div>
+
+      <!-- メニュー別集計 -->
+      <div>
+        <div class="menu-breakdown__title">今日のメニュー内訳</div>
+        <div id="menuBreakdownList" style="color:#bbb;font-size:12px">読み込み中...</div>
       </div>
 
       <!-- クイックナビ -->
@@ -850,6 +878,7 @@ async function login() {
   loadComingsoonReservations();
   loadSbReservations();
   loadWeekSummary();
+  loadMenuBreakdown();
 }
 
 function logout() {
@@ -1234,6 +1263,9 @@ async function syncSlots() {
 let csViewDate = new Date();
 csViewDate.setHours(0,0,0,0);
 let csAutoRefreshTimer = null;
+// キャンセル検知用：日付別の前回スナップショット { "YYYY-MM-DD": Set<key> }
+const csPrevKeys = {};
+function csEntryKey(r) { return `${r.name || ''}|${r.time || ''}|${r.menu || ''}`; }
 
 function csFmtDate(d) {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -1287,27 +1319,51 @@ async function loadComingsoonReservations(silent = false) {
     if (dateStr === today) {
       document.getElementById('csCountNum').textContent = list.length;
       document.getElementById('csCountDate').textContent = dateStr;
+      loadMenuBreakdown();
     }
 
     if (list.length === 0) {
       const msg = data.message || '予約なし（または未同期）';
       content.innerHTML = `<div class="sb-empty">${msg}<br><small>Vercelが毎分・GitHub Actionsが毎日7日分を自動同期します</small></div>`;
     } else {
+      // キャンセル検知：前回スナップショットと比較
+      const currentKeys = new Set(list.map(csEntryKey));
+      const prevKeys = csPrevKeys[dateStr];
+      const cancelledEntries = prevKeys
+        ? [...prevKeys].filter(k => !currentKeys.has(k)).map(k => {
+            const [name, time, menu] = k.split('|');
+            return { name, time, menu, _cancelled: true };
+          })
+        : [];
+      csPrevKeys[dateStr] = currentKeys;
+
       csCurrentList = list;
+
+      // 表示リスト: アクティブ予約 + キャンセル検知行（下部に追加）
+      const activeRows = list.map((r, i) => `
+        <tr class="cs-row" onclick="openCsDetail(${i})">
+          <td><span class="sb-time">${r.timeRange || r.time}</span></td>
+          <td><strong>${r.name || '—'}</strong><br><small style="color:#888">${r.nameKana || ''}</small></td>
+          <td><span class="sb-menu">${r.menu || '—'}</span></td>
+          <td><small>${r.phone || '—'}</small></td>
+          <td style="color:#bbb;font-size:14px">›</td>
+        </tr>
+      `).join('');
+
+      const cancelledRows = cancelledEntries.map(r => `
+        <tr class="cs-row-cancelled">
+          <td><span class="sb-time">${r.time || '—'}</span></td>
+          <td>${r.name || '—'} <span class="cs-cancelled-badge">取消</span></td>
+          <td>${r.menu || '—'}</td>
+          <td>—</td>
+          <td></td>
+        </tr>
+      `).join('');
+
       content.innerHTML = `
         <table class="sb-table">
           <thead><tr><th>時間</th><th>お客様</th><th>メニュー</th><th>電話</th><th style="width:32px"></th></tr></thead>
-          <tbody>
-            ${list.map((r, i) => `
-              <tr class="cs-row" onclick="openCsDetail(${i})">
-                <td><span class="sb-time">${r.timeRange || r.time}</span></td>
-                <td><strong>${r.name || '—'}</strong><br><small style="color:#888">${r.nameKana || ''}</small></td>
-                <td><span class="sb-menu">${r.menu || '—'}</span></td>
-                <td><small>${r.phone || '—'}</small></td>
-                <td style="color:#bbb;font-size:14px">›</td>
-              </tr>
-            `).join('')}
-          </tbody>
+          <tbody>${activeRows}${cancelledRows}</tbody>
         </table>
       `;
     }
@@ -1495,6 +1551,58 @@ async function loadWeekSummary() {
   }).join('');
 }
 
+/* ══ メニュー別集計 ══ */
+const MENU_TYPE_COLORS = {
+  'カラー':        '#4caf50',
+  'ホワイトニング': '#ff9800',
+  'まつ毛パーマ':  '#9c27b0',
+  'ドライヘッドスパ': '#2196f3',
+  'カット':        '#00bcd4',
+  'パーマ':        '#7b1fa2',
+  'トリートメント': '#8bc34a',
+  'その他':        '#9e9e9e',
+};
+
+async function loadMenuBreakdown() {
+  const el = document.getElementById('menuBreakdownList');
+  try {
+    const data = await fetch('/api/comingsoon', {
+      headers: { Authorization: `Bearer ${password}` },
+    }).then(r => r.json()).catch(() => ({ reservations: [] }));
+    const list = (data.reservations || []);
+
+    if (list.length === 0) {
+      el.innerHTML = '<span style="color:#bbb">予約なし</span>';
+      return;
+    }
+
+    const counts = {};
+    for (const r of list) {
+      const st = getServiceType(r.menu);
+      counts[st] = (counts[st] || 0) + 1;
+    }
+
+    const total = list.length;
+    const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+
+    el.innerHTML = entries.map(([st, count]) => {
+      const pct = Math.round(count / total * 100);
+      const color = MENU_TYPE_COLORS[st] || '#9e9e9e';
+      return `
+        <div class="menu-breakdown__row">
+          <span class="menu-breakdown__label" title="${st}">${st}</span>
+          <div class="menu-breakdown__bar-wrap">
+            <div class="menu-breakdown__bar" style="width:${pct}%;background:${color}"></div>
+          </div>
+          <span class="menu-breakdown__count">${count}</span>
+        </div>
+      `;
+    }).join('');
+  } catch {
+    el.innerHTML = '<span style="color:#bbb">取得エラー</span>';
+  }
+}
+
 /* ══ タブ切り替え ══ */
 function switchContentTab(tab, el) {
   document.querySelectorAll('.content-tab').forEach(b => b.classList.remove('active'));
@@ -1550,8 +1658,10 @@ function getServiceType(menu) {
   if (!menu) return 'その他';
   if (/カラー|根元染め|全体染め|リタッチ/.test(menu)) return 'カラー';
   if (/ホワイトニング|ホワイト/.test(menu))            return 'ホワイトニング';
+  if (/ドライヘッドスパ|ヘッドスパ/.test(menu))        return 'ドライヘッドスパ';
+  if (/まつ毛パーマ|まつ毛|まつげ/.test(menu))         return 'まつ毛パーマ';
   if (/カット/.test(menu))                              return 'カット';
-  if (/パーマ|まつ毛/.test(menu))                      return 'パーマ';
+  if (/パーマ/.test(menu))                              return 'パーマ';
   if (/トリートメント/.test(menu))                     return 'トリートメント';
   return 'その他';
 }
@@ -1620,7 +1730,7 @@ async function loadSchedule() {
     }
 
     // サービス種別ごとに予約をレーン（並列列）に振り分ける
-    const COL_ORDER = ['カラー', 'ホワイトニング', 'カット', 'パーマ', 'トリートメント', 'その他'];
+    const COL_ORDER = ['カラー', 'ホワイトニング', 'まつ毛パーマ', 'ドライヘッドスパ', 'カット', 'パーマ', 'トリートメント', 'その他'];
     const usedSts = new Set(allEntries.map(r => getServiceType(r.menu)));
     const serviceTypes = COL_ORDER.filter(st => usedSts.has(st));
     if (serviceTypes.length === 0) serviceTypes.push('その他');
