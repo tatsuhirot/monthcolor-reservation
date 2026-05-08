@@ -166,25 +166,33 @@ async function syncSlots() {
       if (!loginBtn) throw new Error('ログインボタンが見つかりません');
       console.log('🖱  ログインボタンをクリック');
 
-      // SP版はAJAX認証のためURLが変化しない → クリック後に直接スケジュールページへ遷移して確認
+      // SP版はAJAX認証のためURLが変化しない → クリック後にトップページへ遷移してセッションを安定させる
       await loginBtn.click();
       await page.waitForTimeout(3000); // AJAX完了を待つ
 
-      // スケジュールページへ移動してセッションが有効か確認
-      await page.goto('https://salonboard.com/CLP/bt/schedule/salonSchedule/', {
+      // 一旦 PC版トップページへ移動（SP→スケジュール直行はクラッシュする）
+      await page.goto('https://salonboard.com/CLP/bt/top/', {
         waitUntil: 'domcontentloaded', timeout: 30_000,
       });
-      const afterUrl = page.url();
+      await page.waitForTimeout(1500);
+      const topUrl = page.url();
 
-      if (afterUrl.includes('/login')) {
+      if (topUrl.includes('/login')) {
         // ログインページにリダイレクトされた → 認証失敗
         await page.screenshot({ path: path.join(tmpDir, 'salonboard-login-fail.png'), fullPage: true }).catch(() => null);
         if (fs.existsSync(statePath)) {
           fs.rmSync(statePath, { force: true });
           console.warn('⚠️  セッションファイルを削除しました');
         }
-        throw new Error(`SalonBoard login failed (redirected to login): ${afterUrl}`);
+        throw new Error(`SalonBoard login failed (redirected to login): ${topUrl}`);
       }
+
+      // スケジュールページへ移動
+      await page.goto('https://salonboard.com/CLP/bt/schedule/salonSchedule/', {
+        waitUntil: 'domcontentloaded', timeout: 30_000,
+      });
+      await page.waitForTimeout(1000);
+      const afterUrl = page.url();
 
       await context.storageState({ path: statePath });
       console.log('✅ SalonBoard ログイン完了 →', afterUrl);
@@ -209,13 +217,26 @@ async function syncSlots() {
       const monthKey  = dateLabel.slice(0, 7);
       const label     = `${current.getFullYear()}/${current.getMonth()+1}/${current.getDate()}`;
 
-      await page.goto(
-        `https://salonboard.com/CLP/bt/schedule/salonSchedule/?date=${dateKey}`,
-        { waitUntil: 'domcontentloaded' }  // networkidle より速い
-      );
-      await page.waitForTimeout(800);
-
-      const html       = await page.content();
+      // ページクラッシュ時は1回リトライ
+      let html;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          await page.goto(
+            `https://salonboard.com/CLP/bt/schedule/salonSchedule/?date=${dateKey}`,
+            { waitUntil: 'domcontentloaded', timeout: 30_000 }
+          );
+          await page.waitForTimeout(800);
+          html = await page.content();
+          break;
+        } catch (e) {
+          if (attempt === 0 && (e.message.includes('crashed') || e.message.includes('closed'))) {
+            console.warn(`⚠️  ${label}: ページクラッシュ、リトライ中...`);
+            await page.waitForTimeout(2000);
+          } else {
+            throw e;
+          }
+        }
+      }
       const slots      = parseEmptySlots(html);
       const stylistMap = parseStylistMap(html);
       const dayRes     = parseReservations(html, stylistMap);
