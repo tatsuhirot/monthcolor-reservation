@@ -73,7 +73,7 @@ function parseStylistMap(html) {
 // HPB予約（hpbId あり）も直接/電話予約（hpbId なし）も両方取得する
 function parseReservations(html, stylistMap) {
   const reservations = [];
-  const re = /id="(reserve_item_\w+)"([\s\S]*?)(?=id="reserve_item_|id="empty_time_|<\/div>\s*<\/div>|$)/g;
+  const re = /id="(reserve_item_\w+)"([\s\S]*?)(?=id="reserve_item_|id="empty_time_|$)/g;
   let m;
   while ((m = re.exec(html)) !== null) {
     const block     = m[2];
@@ -82,7 +82,9 @@ function parseReservations(html, stylistMap) {
     const rawStart  = extractSpan(block, 'panel_reserve_start');
     const rawEnd    = extractSpan(block, 'panel_reserve_end');
     const stylistId = extractSpan(block, 'panel_reserve_stylistId');
-    const customer  = extractCustomer(block);
+    // extractCustomer は未取得時に '不明' を返すため null 扱いにする
+    const rawCustomer = extractCustomer(block);
+    const customer = rawCustomer !== '不明' ? rawCustomer : '';
 
     // 日付・開始時刻が取れない不正ブロックはスキップ
     if (!rawDate || !rawStart) continue;
@@ -97,7 +99,7 @@ function parseReservations(html, stylistMap) {
       date:     fmtDate8(rawDate),
       time:     startTime,
       timeRange,
-      menuName: (stylistMap && stylistMap[stylistId]) || stylistId || '—',
+      menuName:     (stylistMap && stylistMap[stylistId]) || stylistId || '—',
       customerName: customer || '—',
     });
   }
