@@ -229,7 +229,7 @@ async function syncSlots() {
           html = await page.content();
           break;
         } catch (e) {
-          if (attempt === 0 && (e.message.includes('crashed') || e.message.includes('closed'))) {
+          if (attempt === 0 && (e.message.includes('crashed') || e.message.includes('closed') || e.name === 'TimeoutError')) {
             console.warn(`⚠️  ${label}: ページクラッシュ、リトライ中...`);
             await page.waitForTimeout(2000);
           } else {
