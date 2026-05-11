@@ -1769,8 +1769,8 @@ async function loadSchedule() {
 
     // サービス種別ごとに予約をレーン（並列列）に振り分ける
     const COL_ORDER = ['カラー', 'ホワイトニング', 'まつ毛パーマ', 'ドライヘッドスパ', 'カット', 'パーマ', 'トリートメント', 'その他'];
-    // 最低保証レーン数（表示の最小単位）
-    const ST_MIN = { 'カラー': 1, 'ホワイトニング': 1, 'まつ毛パーマ': 1, 'ドライヘッドスパ': 1 };
+    // 各サービスの実際のスタイリスト枠数（固定値）
+    const ST_CAPACITY = { 'カラー': 6, 'ホワイトニング': 1, 'まつ毛パーマ': 2, 'ドライヘッドスパ': 1 };
 
     // その日に営業しているサービスを activeStylists + stylistMap から判定
     const dayActiveStylists = activeStylistsData && activeStylistsData[dateStr];
@@ -1781,21 +1781,17 @@ async function loadSchedule() {
         }).filter(st => st !== 'その他'))
       : null; // null = データなし → 全サービス表示
 
-    // 休日サービス: ST_MIN に含まれるが openServiceTypes に含まれないもの
+    // 休日サービス: ST_CAPACITY に含まれるが openServiceTypes に含まれないもの
     const holidayServiceTypes = openServiceTypes
-      ? new Set(Object.keys(ST_MIN).filter(st => !openServiceTypes.has(st)))
+      ? new Set(Object.keys(ST_CAPACITY).filter(st => !openServiceTypes.has(st)))
       : new Set(); // データなし → 休日なし
 
     const usedSts = new Set(allEntries.map(r => getServiceType(r.menu)));
     // 固定4サービスは常に表示（休日でもグレーアウトで表示）
-    for (const st of Object.keys(ST_MIN)) usedSts.add(st);
+    for (const st of Object.keys(ST_CAPACITY)) usedSts.add(st);
     const serviceTypes = COL_ORDER.filter(st => usedSts.has(st));
     if (serviceTypes.length === 0) serviceTypes.push('その他');
 
-    // slotCountsData から各時刻の最大空き人数を取得（capacity の動的計算に使用）
-    const daySlotCounts = (slotCountsData && slotCountsData[dateStr]) || {};
-    // 時刻ごとに「予約中レーン数 + 空き人数」の最大値を service type 別に計算
-    // → stLaneCounts の下限として使うことで、空きスタイリストのレーンを正しく表示
     const stLaneCounts = {};   // st → レーン数
     const entryLane = new Map(); // entry → レーンindex
 
@@ -1804,7 +1800,7 @@ async function loadSchedule() {
         .filter(r => getServiceType(r.menu) === st)
         .sort((a, b) => (timeToMins(a.time) || 0) - (timeToMins(b.time) || 0));
 
-      const laneEndMins = []; // 各レーンの現在の終了分
+      const laneEndMins = [];
       for (const r of stEntries) {
         const startMins = timeToMins(r.time) || 0;
         const tr = r.timeRange || '';
@@ -1820,24 +1816,9 @@ async function loadSchedule() {
         entryLane.set(r, assigned);
       }
 
-      // 各スロット時刻での「使用レーン数 + 空き人数」= 実際のスタイリスト総数
-      // slotCounts が取れている時刻で最大値を取り、capacity として使用する
-      let dynamicCapacity = laneEndMins.length;
-      for (const [slotTime, freeCount] of Object.entries(daySlotCounts)) {
-        const slotMins = timeToMins(slotTime);
-        // その時刻に使用中のレーン数を数える
-        const busyCount = laneEndMins.filter((endMins, li) => {
-          const entry = [...entryLane.entries()].find(([,l]) => l === li);
-          if (!entry) return false;
-          const r = entry[0];
-          const startMins = timeToMins(r.time) || 0;
-          const tr = r.timeRange || '';
-          const rEnd = tr.includes('-') ? (timeToMins(tr.split('-')[1].trim()) || startMins+30) : startMins+30;
-          return startMins <= slotMins && slotMins < rEnd;
-        }).length;
-        dynamicCapacity = Math.max(dynamicCapacity, busyCount + freeCount);
-      }
-      stLaneCounts[st] = Math.max(dynamicCapacity, ST_MIN[st] || 1);
+      // 固定スタイリスト枠数を上限・下限として使用（カラー6/ホワイトニング1/まつ毛パーマ2/ドライヘッドスパ1）
+      const capacity = ST_CAPACITY[st] || 1;
+      stLaneCounts[st] = Math.min(Math.max(laneEndMins.length, capacity), capacity);
     }
 
     // colGrid[st][laneIdx][slotIdx] = {span, r}
