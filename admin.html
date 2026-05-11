@@ -1215,9 +1215,15 @@ async function onNewSlotCondChange() {
   const capacity = ST_CAP[serviceType] || 1;
 
   // 1. SalonBoard の空き枠（サービス別）
-  const sbTimes = serviceSlotsData?.[date]?.[serviceType]
-    ?? slotsData?.[date]
-    ?? DEFAULT_SLOTS;
+  // serviceSlotsData がある日付は必ずそのサービスのデータを使う
+  // （undefined = そのサービスは満杯 or 休日 → 空配列で「空きなし」表示）
+  let sbTimes;
+  if (serviceSlotsData?.[date]) {
+    sbTimes = serviceSlotsData[date][serviceType] ?? [];
+  } else {
+    // 古いデータ（serviceSlots未対応）の場合のみ全体スロットにフォールバック
+    sbTimes = slotsData?.[date] ?? DEFAULT_SLOTS;
+  }
 
   // 2. 既存のコミングスーン予約を取得して満杯チェック
   let bookedByTime = {}; // time → count（このサービスで予約済み数）
