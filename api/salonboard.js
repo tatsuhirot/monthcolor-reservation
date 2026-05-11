@@ -29,7 +29,7 @@ module.exports = async function handler(req, res) {
       });
       if (!blobs.length) return res.status(200).json({ updatedAt: null, slots: null });
       const data = await fetch(blobs[0].url).then(r => r.json());
-      res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate');
+      res.setHeader('Cache-Control', 'no-store');
       return res.status(200).json(data);
     } catch (e) {
       return res.status(200).json({ updatedAt: null, slots: null });

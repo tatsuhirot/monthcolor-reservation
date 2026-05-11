@@ -1210,6 +1210,19 @@ async function onNewSlotCondChange() {
   document.getElementById('newTimeRow').style.display = 'none';
   if (!date || !serviceType) return;
 
+  // serviceSlotsData が未ロードなら取得する
+  if (!serviceSlotsData) {
+    try {
+      const r = await fetch('/api/salonboard');
+      const d = await r.json();
+      serviceSlotsData = d.serviceSlots || null;
+      slotsData        = d.slots        || slotsData;
+      slotCountsData   = d.slotCounts   || slotCountsData;
+      activeStylistsData = d.activeStylists || activeStylistsData;
+      stylistMapData   = d.stylistMap   || stylistMapData;
+    } catch { /* silent */ }
+  }
+
   // ST_CAPACITYと同じ固定枠数（サービス別）
   const ST_CAP = { 'カラー': 6, 'ホワイトニング': 1, 'まつ毛パーマ': 2, 'ドライヘッドスパ': 1 };
   const capacity = ST_CAP[serviceType] || 1;
