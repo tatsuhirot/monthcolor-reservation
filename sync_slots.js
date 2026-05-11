@@ -112,6 +112,26 @@ function parseReservations(html, stylistMap) {
   return reservations.sort((a, b) => a.time.localeCompare(b.time));
 }
 
+// panel_plan ブロックから終日休日（allDayFlg=1）のスタイリストIDを抽出
+// 休日行は empty_time_sid_fix の ID が HTML に残るが class に "disable panel_plan" が付く。
+// この関数で holiday set を作り、activeStylists から除外する。
+function parseHolidayStylists(html) {
+  // panel_plan ブロックを丸ごと切り出す（greedy を避けるため [\s\S]*? を使用）
+  const blockRe = /class="panel_plan">([\s\S]*?)<\/div>/g;
+  const holidayIds = new Set();
+  let bm;
+  while ((bm = blockRe.exec(html)) !== null) {
+    const block = bm[1];
+    // allDayFlg=1 のブロックだけが対象
+    if (!block.includes('>1<')) continue;
+    const allDayM = block.match(/class="panel_plan_allDayFlg display_none"[^>]*>(\d+)</);
+    if (!allDayM || allDayM[1] !== '1') continue;
+    const idM = block.match(/class="panel_plan_stylistId display_none"[^>]*>([^<]+)</);
+    if (idM) holidayIds.add(idM[1].trim());
+  }
+  return holidayIds;
+}
+
 // parse_calendar.js と同じ正規表現で空き枠を抽出
 function parseEmptySlots(html) {
   // id="empty_time_sid_fix_20260514_0930_T000779306_0"
@@ -131,19 +151,30 @@ function parseEmptySlots(html) {
     if (!slotsByDate[date][time]) slotsByDate[date][time] = new Set();
     slotsByDate[date][time].add(stylistId);
   }
+
+  // 終日休日のスタイリストIDを除外（例: 5/17 まつげパーマ・ドライヘッドスパ）
+  const holidayIds = parseHolidayStylists(html);
+
   // slots: { date: [sorted times] }（既存互換）
   // slotCounts: { date: { time: freeCount } }（admin.html で動的 capacity に使用）
+  // activeStylists: { date: [stylistId, ...] }（休日スタイリストを除いた稼働スタイリスト一覧）
   const slots = {};
   const slotCounts = {};
+  const activeStylists = {};
   for (const [date, timeMap] of Object.entries(slotsByDate)) {
-    const sortedTimes = Object.keys(timeMap).sort();
-    slots[date] = sortedTimes;
     slotCounts[date] = {};
-    for (const time of sortedTimes) {
-      slotCounts[date][time] = timeMap[time].size;
+    const stylistSet = new Set();
+    for (const time of Object.keys(timeMap).sort()) {
+      // 休日スタイリストをカウントから除外
+      const activeInSlot = [...timeMap[time]].filter(id => !holidayIds.has(id));
+      slotCounts[date][time] = activeInSlot.length;
+      activeInSlot.forEach(id => stylistSet.add(id));
     }
+    // count=0 の枠は「稼働スタイリスト全員が休日」= その時間は空き枠なし
+    slots[date] = Object.keys(slotCounts[date]).filter(t => slotCounts[date][t] > 0).sort();
+    activeStylists[date] = [...stylistSet].sort();
   }
-  return { slots, slotCounts };
+  return { slots, slotCounts, activeStylists };
 }
 
 async function syncSlots() {
@@ -220,6 +251,8 @@ async function syncSlots() {
     // SalonBoardは ?date=YYYYMMDD で1日単位のデータを返すため、日ごとに取得する
     const allSlots = {};
     const allSlotCounts = {};
+    const allActiveStylists = {};
+    let globalStylistMap = {};
     const reservationsByMonth = {}; // { "YYYY-MM": { "YYYY-MM-DD": [...] } }
     const now = new Date();
     const todayKey = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`;
@@ -254,8 +287,9 @@ async function syncSlots() {
           }
         }
       }
-      const { slots, slotCounts } = parseEmptySlots(html);
+      const { slots, slotCounts, activeStylists } = parseEmptySlots(html);
       const stylistMap = parseStylistMap(html);
+      if (Object.keys(stylistMap).length > 0) globalStylistMap = { ...globalStylistMap, ...stylistMap };
       const dayRes     = parseReservations(html, stylistMap);
 
       // 予約データを月別に蓄積
@@ -276,6 +310,7 @@ async function syncSlots() {
       if (dayCount > 0) {
         Object.assign(allSlots, slots);
         Object.assign(allSlotCounts, slotCounts);
+        Object.assign(allActiveStylists, activeStylists);
         console.log(`✅ ${label}: ${slotCount}枠 / 予約${dayRes.length}件`);
       }
 
@@ -298,7 +333,13 @@ async function syncSlots() {
     await context.storageState({ path: statePath });
 
     // ── Vercel Blob に保存 ──────────────────────────────────────
-    const payload = JSON.stringify({ updatedAt: new Date().toISOString(), slots: allSlots, slotCounts: allSlotCounts }, null, 2);
+    const payload = JSON.stringify({
+      updatedAt: new Date().toISOString(),
+      slots: allSlots,
+      slotCounts: allSlotCounts,
+      activeStylists: allActiveStylists,
+      stylistMap: globalStylistMap,
+    }, null, 2);
     await put(SLOTS_KEY, payload, {
       access: 'public',
       addRandomSuffix: false,

@@ -142,11 +142,65 @@ async function notifyStaff(newList, prevList, dateStr) {
   });
 }
 
-async function handleCsSync(res) {
-  const today = new Date();
-  today.setTime(today.getTime() + 9 * 60 * 60 * 1000);
-  const dateStr = toDateStr(today);
+async function syncOneDay(jsessionId, dwrRequests, dateStr, isToday) {
   const dateKey = dateStr.replace(/-/g, '');
+  await setDateContext(jsessionId, dateKey);
+
+  const dwrTexts = await Promise.allSettled(
+    dwrRequests.map((tmpl, i) => callDwr(jsessionId, tmpl, i + 1))
+  );
+  const validTexts = dwrTexts.filter(r => r.status === 'fulfilled' && isSessionValid(r.value)).map(r => r.value);
+  if (!validTexts.length) return { ok: false, reason: 'no valid DWR data', date: dateStr };
+
+  const allReservations = [];
+  const seenIds = new Set();
+  for (const text of validTexts) {
+    for (const item of extractReservations(text)) {
+      if (!seenIds.has(item.id)) {
+        seenIds.add(item.id);
+        allReservations.push({
+          id: item.id, time: startTime(item.reserveTime), timeRange: item.reserveTime,
+          name: item.customerName || '不明', nameKana: item.customerNameKana || '',
+          menu: item.name || '', phone: item.customerPhoneNo2 || item.customerPhoneNo || '',
+          email: item.customerMailAddress || '', visitCount: item.customerReservationCount || 0,
+          note: item.userComment || '', source: 'comingsoon',
+        });
+      }
+    }
+  }
+  allReservations.sort((a, b) => a.time.localeCompare(b.time));
+
+  let changed = true, prevReservations = [];
+  const existingMeta = await head(`comingsoon-${dateStr}.json`, { token: process.env.BLOB_READ_WRITE_TOKEN });
+  if (existingMeta) {
+    const existing = await fetch(existingMeta.url).then(r => r.json()).catch(() => ({}));
+    prevReservations = existing.reservations || [];
+    if (JSON.stringify(prevReservations) === JSON.stringify(allReservations)) changed = false;
+  }
+
+  if (changed) {
+    const payload = JSON.stringify({ updatedAt: new Date().toISOString(), date: dateStr, reservations: allReservations }, null, 2);
+    const puts = [
+      put(`comingsoon-${dateStr}.json`, payload, { access: 'public', addRandomSuffix: false, allowOverwrite: true, token: process.env.BLOB_READ_WRITE_TOKEN }),
+    ];
+    // 今日分のみ comingsoon-today.json にも保存（後方互換）
+    if (isToday) {
+      puts.push(put('comingsoon-today.json', payload, { access: 'public', addRandomSuffix: false, allowOverwrite: true, token: process.env.BLOB_READ_WRITE_TOKEN }));
+    }
+    await Promise.all(puts);
+    if (isToday) {
+      notifyStaff(allReservations, prevReservations, dateStr).catch(e => console.error('notify error:', e.message));
+    }
+  }
+
+  return { ok: true, changed, count: allReservations.length, date: dateStr };
+}
+
+async function handleCsSync(res) {
+  // 今日から7日分（今日+6日後）を同期して週間サマリー・タイムラインを全日表示可能にする
+  const SYNC_DAYS = 7;
+  const baseDate = new Date();
+  baseDate.setTime(baseDate.getTime() + 9 * 60 * 60 * 1000); // JST
 
   try {
     const sessionMeta = await head('comingsoon-session.json', { token: process.env.BLOB_READ_WRITE_TOKEN });
@@ -156,50 +210,23 @@ async function handleCsSync(res) {
     const { jsessionId, dwrRequests } = session;
     if (!jsessionId || !dwrRequests?.length) return res.status(200).json({ ok: false, reason: 'session incomplete' });
 
-    await setDateContext(jsessionId, dateKey);
+    const todayStr = toDateStr(baseDate);
+    const results = [];
 
-    const dwrTexts = await Promise.allSettled(
-      dwrRequests.map((tmpl, i) => callDwr(jsessionId, tmpl, i + 1))
-    );
-    const validTexts = dwrTexts.filter(r => r.status === 'fulfilled' && isSessionValid(r.value)).map(r => r.value);
-    if (!validTexts.length) return res.status(200).json({ ok: false, reason: 'no valid DWR data', date: dateStr });
-
-    const allReservations = [];
-    const seenIds = new Set();
-    for (const text of validTexts) {
-      for (const item of extractReservations(text)) {
-        if (!seenIds.has(item.id)) {
-          seenIds.add(item.id);
-          allReservations.push({
-            id: item.id, time: startTime(item.reserveTime), timeRange: item.reserveTime,
-            name: item.customerName || '不明', nameKana: item.customerNameKana || '',
-            menu: item.name || '', phone: item.customerPhoneNo2 || item.customerPhoneNo || '',
-            email: item.customerMailAddress || '', visitCount: item.customerReservationCount || 0,
-            note: item.userComment || '', source: 'comingsoon',
-          });
-        }
+    for (let i = 0; i < SYNC_DAYS; i++) {
+      const d = new Date(baseDate.getTime() + i * 86400000);
+      const dateStr = toDateStr(d);
+      const isToday = dateStr === todayStr;
+      try {
+        const r = await syncOneDay(jsessionId, dwrRequests, dateStr, isToday);
+        results.push(r);
+      } catch (e) {
+        results.push({ ok: false, date: dateStr, error: e.message });
       }
     }
-    allReservations.sort((a, b) => a.time.localeCompare(b.time));
 
-    let changed = true, prevReservations = [];
-    const existingMeta = await head(`comingsoon-${dateStr}.json`, { token: process.env.BLOB_READ_WRITE_TOKEN });
-    if (existingMeta) {
-      const existing = await fetch(existingMeta.url).then(r => r.json());
-      prevReservations = existing.reservations || [];
-      if (JSON.stringify(prevReservations) === JSON.stringify(allReservations)) changed = false;
-    }
-
-    if (changed) {
-      const payload = JSON.stringify({ updatedAt: new Date().toISOString(), date: dateStr, reservations: allReservations }, null, 2);
-      await Promise.all([
-        put(`comingsoon-${dateStr}.json`, payload, { access: 'public', addRandomSuffix: false, allowOverwrite: true, token: process.env.BLOB_READ_WRITE_TOKEN }),
-        put('comingsoon-today.json', payload, { access: 'public', addRandomSuffix: false, allowOverwrite: true, token: process.env.BLOB_READ_WRITE_TOKEN }),
-      ]);
-      notifyStaff(allReservations, prevReservations, dateStr).catch(e => console.error('notify error:', e.message));
-    }
-
-    return res.status(200).json({ ok: true, changed, count: allReservations.length, date: dateStr });
+    const totalCount = results.filter(r => r.ok).reduce((s, r) => s + (r.count || 0), 0);
+    return res.status(200).json({ ok: true, synced: results.length, totalCount, results });
   } catch (e) {
     console.error('cs-sync error:', e.message);
     return res.status(500).json({ ok: false, error: e.message });

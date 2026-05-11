@@ -1135,6 +1135,8 @@ async function submitEdit() {
 /* ══ 新規予約モーダル ══ */
 let slotsData = null;
 let slotCountsData = null;
+let activeStylistsData = null;
+let stylistMapData = null;
 const DEFAULT_SLOTS = (() => {
   const s = [];
   for (let h = 9; h <= 19; h++) {
@@ -1158,7 +1160,9 @@ async function openNewModal() {
     const d   = await res.json();
     slotsData = d.slots;
     slotCountsData = d.slotCounts || null;
-  } catch { slotsData = null; slotCountsData = null; }
+    activeStylistsData = d.activeStylists || null;
+    stylistMapData = d.stylistMap || null;
+  } catch { slotsData = null; slotCountsData = null; activeStylistsData = null; stylistMapData = null; }
 }
 
 function closeNewModal() {
@@ -1746,9 +1750,22 @@ async function loadSchedule() {
     const COL_ORDER = ['カラー', 'ホワイトニング', 'まつ毛パーマ', 'ドライヘッドスパ', 'カット', 'パーマ', 'トリートメント', 'その他'];
     // 最低保証レーン数（表示の最小単位）
     const ST_MIN = { 'カラー': 1, 'ホワイトニング': 1, 'まつ毛パーマ': 1, 'ドライヘッドスパ': 1 };
+
+    // その日に営業しているサービスを activeStylists + stylistMap から判定
+    const dayActiveStylists = activeStylistsData && activeStylistsData[dateStr];
+    const openServiceTypes = dayActiveStylists && stylistMapData
+      ? new Set(dayActiveStylists.map(id => {
+          const name = stylistMapData[id] || '';
+          return getServiceType(name);
+        }).filter(st => st !== 'その他'))
+      : null; // null = データなし → 全サービス表示
+
     const usedSts = new Set(allEntries.map(r => getServiceType(r.menu)));
-    // 予約がなくても最低定義があるサービスは表示する
-    for (const st of Object.keys(ST_MIN)) usedSts.add(st);
+    // 予約がなくても「その日に営業中」のサービスは表示する
+    for (const st of Object.keys(ST_MIN)) {
+      // openServiceTypes がある場合は営業中のものだけ追加、ない場合は全て追加
+      if (!openServiceTypes || openServiceTypes.has(st)) usedSts.add(st);
+    }
     const serviceTypes = COL_ORDER.filter(st => usedSts.has(st));
     if (serviceTypes.length === 0) serviceTypes.push('その他');
 
