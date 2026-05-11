@@ -1689,7 +1689,7 @@ async function loadSchedule() {
   label.textContent = `${schedViewDate.getMonth()+1}/${schedViewDate.getDate()}(${dow})`;
 
   try {
-    const csUrl = isToday ? '/api/comingsoon' : `/api/comingsoon?date=${dateStr}`;
+    const csUrl = `/api/comingsoon?date=${dateStr}`;
     const [csRes, sbRes] = await Promise.all([
       fetch(csUrl, { headers: { Authorization: `Bearer ${password}` } })
         .then(r => r.json()).catch(() => ({ reservations: [] })),
