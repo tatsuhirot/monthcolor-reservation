@@ -1207,8 +1207,16 @@ async function onNewSlotCondChange() {
   const date        = document.getElementById('newDate').value;
   const serviceType = document.getElementById('newServiceType').value;
   document.getElementById('newTime').value = '';
+  const grid = document.getElementById('newSlotGrid');
+  // 日付だけ選んでサービス未選択 → 誘導メッセージを表示
+  if (date && !serviceType) {
+    grid.innerHTML = '<span style="color:#e65100;font-size:13px">↑ まずサービスを選んでください</span>';
+    document.getElementById('newTimeRow').style.display = '';
+    return;
+  }
   document.getElementById('newTimeRow').style.display = 'none';
   if (!date || !serviceType) return;
+  try {
 
   // serviceSlotsData が未ロードなら取得する
   if (!serviceSlotsData) {
@@ -1256,7 +1264,6 @@ async function onNewSlotCondChange() {
   } catch { /* silent */ }
 
   // 3. 満杯スロットを除外して表示
-  const grid = document.getElementById('newSlotGrid');
   if (sbTimes.length === 0) {
     grid.innerHTML = '<span style="color:#888;font-size:13px">この日は空きスロットがありません</span>';
   } else {
@@ -1269,6 +1276,11 @@ async function onNewSlotCondChange() {
     }).join('');
   }
   document.getElementById('newTimeRow').style.display = '';
+  } catch(e) {
+    document.getElementById('newSlotGrid').innerHTML =
+      `<span style="color:#c00;font-size:13px">エラー: ${e.message}</span>`;
+    document.getElementById('newTimeRow').style.display = '';
+  }
 }
 
 function selectNewSlot(time, el) {
