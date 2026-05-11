@@ -70,6 +70,13 @@ function parseStylistMap(html) {
 }
 
 // SalonBoard スケジュール画面から予約済みブロックを抽出
+// SalonBoardの予約スロットは30分固定（計算済みスタイル高さ≈56px/slot で確認済み）
+function addMins(timeStr, mins) {
+  const [h, mn] = timeStr.split(':').map(Number);
+  const total = h * 60 + mn + mins;
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+}
+
 // HPB予約（hpbId あり）も直接/電話予約（hpbId なし）も両方取得する
 function parseReservations(html, stylistMap) {
   const reservations = [];
@@ -80,7 +87,6 @@ function parseReservations(html, stylistMap) {
     const hpbId     = extractSpan(block, 'panel_reserve_id');
     const rawDate   = extractSpan(block, 'panel_reserve_date');
     const rawStart  = extractSpan(block, 'panel_reserve_start');
-    const rawEnd    = extractSpan(block, 'panel_reserve_end');
     const stylistId = extractSpan(block, 'panel_reserve_stylistId');
     // extractCustomer は未取得時に '不明' を返すため null 扱いにする
     const rawCustomer = extractCustomer(block);
@@ -89,16 +95,16 @@ function parseReservations(html, stylistMap) {
     // 日付・開始時刻が取れない不正ブロックはスキップ
     if (!rawDate || !rawStart) continue;
 
+    const frameNumber = parseInt(extractSpan(block, 'frameNumber') || '1', 10);
     const startTime = fmtTime4(rawStart);
-    const endTime   = rawEnd ? fmtTime4(rawEnd) : '';
-    const timeRange = endTime ? `${startTime}-${endTime}` : startTime;
+    const endTime   = addMins(startTime, frameNumber * 30);  // frameNumber × 30分が実際の所要時間
 
     reservations.push({
       hpbId:    hpbId || null,
       source:   hpbId ? 'hpb' : 'direct',  // 'hpb' = HPB経由 / 'direct' = 電話・店頭
       date:     fmtDate8(rawDate),
       time:     startTime,
-      timeRange,
+      timeRange: `${startTime}-${endTime}`,
       menuName:     (stylistMap && stylistMap[stylistId]) || stylistId || '—',
       customerName: customer || '—',
     });
@@ -111,6 +117,7 @@ function parseEmptySlots(html) {
   // id="empty_time_sid_fix_20260514_0930_T000779306_0"
   const emptyRe = /id="empty_time_sid_fix_(\d{8})_(\d{4})_(T\d+)_(\d+)"/g;
   const seen = new Set();
+  // slotsByDate: date → time → Set<stylistId>（空きスタイリスト人数を保持）
   const slotsByDate = {};
   let m;
   while ((m = emptyRe.exec(html)) !== null) {
@@ -119,15 +126,24 @@ function parseEmptySlots(html) {
     seen.add(key);
     const date = `${m[1].slice(0,4)}-${m[1].slice(4,6)}-${m[1].slice(6,8)}`;
     const time = `${m[2].slice(0,2)}:${m[2].slice(2,4)}`;
-    if (!slotsByDate[date]) slotsByDate[date] = new Set();
-    slotsByDate[date].add(time);
+    const stylistId = m[3];
+    if (!slotsByDate[date]) slotsByDate[date] = {};
+    if (!slotsByDate[date][time]) slotsByDate[date][time] = new Set();
+    slotsByDate[date][time].add(stylistId);
   }
-  // Set → ソート済みArray
-  const result = {};
-  for (const [date, times] of Object.entries(slotsByDate)) {
-    result[date] = [...times].sort();
+  // slots: { date: [sorted times] }（既存互換）
+  // slotCounts: { date: { time: freeCount } }（admin.html で動的 capacity に使用）
+  const slots = {};
+  const slotCounts = {};
+  for (const [date, timeMap] of Object.entries(slotsByDate)) {
+    const sortedTimes = Object.keys(timeMap).sort();
+    slots[date] = sortedTimes;
+    slotCounts[date] = {};
+    for (const time of sortedTimes) {
+      slotCounts[date][time] = timeMap[time].size;
+    }
   }
-  return result;
+  return { slots, slotCounts };
 }
 
 async function syncSlots() {
@@ -203,6 +219,7 @@ async function syncSlots() {
     // ── 1日ずつ全日をスキャン ─────────────────────────────────────
     // SalonBoardは ?date=YYYYMMDD で1日単位のデータを返すため、日ごとに取得する
     const allSlots = {};
+    const allSlotCounts = {};
     const reservationsByMonth = {}; // { "YYYY-MM": { "YYYY-MM-DD": [...] } }
     const now = new Date();
     const todayKey = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`;
@@ -225,7 +242,7 @@ async function syncSlots() {
             `https://salonboard.com/CLP/bt/schedule/salonSchedule/?date=${dateKey}`,
             { waitUntil: 'domcontentloaded', timeout: 30_000 }
           );
-          await page.waitForTimeout(800);
+          await page.waitForTimeout(1500);
           html = await page.content();
           break;
         } catch (e) {
@@ -237,7 +254,7 @@ async function syncSlots() {
           }
         }
       }
-      const slots      = parseEmptySlots(html);
+      const { slots, slotCounts } = parseEmptySlots(html);
       const stylistMap = parseStylistMap(html);
       const dayRes     = parseReservations(html, stylistMap);
 
@@ -258,6 +275,7 @@ async function syncSlots() {
       const slotCount = Object.values(slots).reduce((s, a) => s + a.length, 0);
       if (dayCount > 0) {
         Object.assign(allSlots, slots);
+        Object.assign(allSlotCounts, slotCounts);
         console.log(`✅ ${label}: ${slotCount}枠 / 予約${dayRes.length}件`);
       }
 
@@ -280,7 +298,7 @@ async function syncSlots() {
     await context.storageState({ path: statePath });
 
     // ── Vercel Blob に保存 ──────────────────────────────────────
-    const payload = JSON.stringify({ updatedAt: new Date().toISOString(), slots: allSlots }, null, 2);
+    const payload = JSON.stringify({ updatedAt: new Date().toISOString(), slots: allSlots, slotCounts: allSlotCounts }, null, 2);
     await put(SLOTS_KEY, payload, {
       access: 'public',
       addRandomSuffix: false,
