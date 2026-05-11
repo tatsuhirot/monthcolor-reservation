@@ -517,6 +517,7 @@ body { font-family: "Hiragino Sans", Meiryo, sans-serif; background: #f0f2f0; co
 }
 .slot-btn:hover { background: #e8f5e9; border-color: #c8e6c9; }
 .slot-btn.selected { background: #2d6a31; color: #fff; border-color: #2d6a31; }
+.slot-btn-full { background: #f5f5f5; color: #bbb; border-color: #e0e0e0; cursor: not-allowed; text-decoration: line-through; }
 
 /* ── トースト ── */
 #toast {
@@ -803,8 +804,18 @@ body { font-family: "Hiragino Sans", Meiryo, sans-serif; background: #f0f2f0; co
   <div class="modal new-modal">
     <h2>＋ 新規予約登録</h2>
     <div class="form-row">
+      <label>サービス <span style="color:#c00">*</span></label>
+      <select id="newServiceType" onchange="onNewSlotCondChange()">
+        <option value="">-- 選択してください --</option>
+        <option value="カラー">カラー</option>
+        <option value="ホワイトニング">ホワイトニング</option>
+        <option value="まつ毛パーマ">まつ毛パーマ</option>
+        <option value="ドライヘッドスパ">ドライヘッドスパ</option>
+      </select>
+    </div>
+    <div class="form-row">
       <label>日付 <span style="color:#c00">*</span></label>
-      <input type="date" id="newDate" onchange="onNewDateChange()">
+      <input type="date" id="newDate" onchange="onNewSlotCondChange()">
     </div>
     <div id="newTimeRow" style="display:none">
       <div class="form-row">
@@ -822,7 +833,7 @@ body { font-family: "Hiragino Sans", Meiryo, sans-serif; background: #f0f2f0; co
       <input type="tel" id="newPhone" placeholder="例: 090-1234-5678">
     </div>
     <div class="form-row">
-      <label>メニュー</label>
+      <label>メニュー <span style="color:#aaa;font-size:11px">任意・詳細</span></label>
       <input type="text" id="newMenu" placeholder="例: リタッチカラー">
     </div>
     <div class="form-row">
@@ -1153,6 +1164,7 @@ let slotsData = null;
 let slotCountsData = null;
 let activeStylistsData = null;
 let stylistMapData = null;
+let serviceSlotsData = null; // { date: { serviceType: [times] } }
 const DEFAULT_SLOTS = (() => {
   const s = [];
   for (let h = 9; h <= 19; h++) {
@@ -1166,37 +1178,76 @@ async function openNewModal() {
   const today = new Date().toISOString().split('T')[0];
   document.getElementById('newDate').min   = today;
   document.getElementById('newDate').value = '';
+  document.getElementById('newServiceType').value = '';
   ['newName','newPhone','newMenu','newEmail','newMemo','newTime'].forEach(id =>
     document.getElementById(id).value = ''
   );
   document.getElementById('newTimeRow').style.display = 'none';
   document.getElementById('newModal').classList.add('open');
-  try {
-    const res = await fetch('/api/salonboard');
-    const d   = await res.json();
-    slotsData = d.slots;
-    slotCountsData = d.slotCounts || null;
-    activeStylistsData = d.activeStylists || null;
-    stylistMapData = d.stylistMap || null;
-  } catch { slotsData = null; slotCountsData = null; activeStylistsData = null; stylistMapData = null; }
+  // serviceSlotsData がまだ未取得なら fetch（loadSyncTime で取得済みの場合はスキップ）
+  if (!serviceSlotsData) {
+    try {
+      const res = await fetch('/api/salonboard');
+      const d   = await res.json();
+      slotsData = d.slots;
+      slotCountsData = d.slotCounts || null;
+      activeStylistsData = d.activeStylists || null;
+      stylistMapData = d.stylistMap || null;
+      serviceSlotsData = d.serviceSlots || null;
+    } catch { /* silent */ }
+  }
 }
 
 function closeNewModal() {
   document.getElementById('newModal').classList.remove('open');
 }
 
-function onNewDateChange() {
-  const date = document.getElementById('newDate').value;
+// サービス種別・日付のどちらかが変わったら空き枠を再計算
+async function onNewSlotCondChange() {
+  const date        = document.getElementById('newDate').value;
+  const serviceType = document.getElementById('newServiceType').value;
   document.getElementById('newTime').value = '';
-  if (!date) { document.getElementById('newTimeRow').style.display = 'none'; return; }
-  const available = slotsData ? (slotsData[date] ?? DEFAULT_SLOTS) : DEFAULT_SLOTS;
+  document.getElementById('newTimeRow').style.display = 'none';
+  if (!date || !serviceType) return;
+
+  // ST_CAPACITYと同じ固定枠数（サービス別）
+  const ST_CAP = { 'カラー': 6, 'ホワイトニング': 1, 'まつ毛パーマ': 2, 'ドライヘッドスパ': 1 };
+  const capacity = ST_CAP[serviceType] || 1;
+
+  // 1. SalonBoard の空き枠（サービス別）
+  const sbTimes = serviceSlotsData?.[date]?.[serviceType]
+    ?? slotsData?.[date]
+    ?? DEFAULT_SLOTS;
+
+  // 2. 既存のコミングスーン予約を取得して満杯チェック
+  let bookedByTime = {}; // time → count（このサービスで予約済み数）
+  try {
+    const csRes = await fetch(`/api/comingsoon?date=${date}`, {
+      headers: { Authorization: `Bearer ${password}` }
+    });
+    if (csRes.ok) {
+      const csData = await csRes.json();
+      for (const r of (csData.reservations || [])) {
+        const rSvc = getServiceType(r.menu || '');
+        if (rSvc !== serviceType) continue;
+        const t = normTime(r.time);
+        if (t) bookedByTime[t] = (bookedByTime[t] || 0) + 1;
+      }
+    }
+  } catch { /* silent */ }
+
+  // 3. 満杯スロットを除外して表示
   const grid = document.getElementById('newSlotGrid');
-  if (available.length === 0) {
+  if (sbTimes.length === 0) {
     grid.innerHTML = '<span style="color:#888;font-size:13px">この日は空きスロットがありません</span>';
   } else {
-    grid.innerHTML = available.map(t =>
-      `<button type="button" class="slot-btn" onclick="selectNewSlot('${t}',this)">${t}</button>`
-    ).join('');
+    grid.innerHTML = sbTimes.map(t => {
+      const booked = bookedByTime[t] || 0;
+      const full   = booked >= capacity;
+      return full
+        ? `<button type="button" class="slot-btn slot-btn-full" disabled title="${booked}/${capacity}件埋まり">${t}</button>`
+        : `<button type="button" class="slot-btn" onclick="selectNewSlot('${t}',this)">${t}</button>`;
+    }).join('');
   }
   document.getElementById('newTimeRow').style.display = '';
 }
@@ -1208,14 +1259,18 @@ function selectNewSlot(time, el) {
 }
 
 async function submitNew() {
-  const date  = document.getElementById('newDate').value;
-  const time  = document.getElementById('newTime').value;
-  const name  = document.getElementById('newName').value.trim();
-  const phone = document.getElementById('newPhone').value.trim();
-  const menu  = document.getElementById('newMenu').value.trim();
+  const date        = document.getElementById('newDate').value;
+  const time        = document.getElementById('newTime').value;
+  const name        = document.getElementById('newName').value.trim();
+  const phone       = document.getElementById('newPhone').value.trim();
+  const serviceType = document.getElementById('newServiceType').value;
+  const menuDetail  = document.getElementById('newMenu').value.trim();
+  // メニュー名: 詳細があればそれを、なければサービス種別をそのまま使う
+  const menu  = menuDetail || serviceType;
   const email = document.getElementById('newEmail').value.trim();
   const memo  = document.getElementById('newMemo').value.trim();
 
+  if (!serviceType) { showToast('サービスを選択してください', true); return; }
   if (!date)  { showToast('日付を選択してください', true); return; }
   if (!time)  { showToast('時間スロットを選択してください', true); return; }
   if (!name)  { showToast('お名前を入力してください', true); return; }
@@ -1268,6 +1323,7 @@ async function loadSyncTime() {
     slotCountsData = d.slotCounts || slotCountsData;
     activeStylistsData = d.activeStylists || activeStylistsData;
     stylistMapData = d.stylistMap || stylistMapData;
+    serviceSlotsData = d.serviceSlots || serviceSlotsData;
     if (d.updatedAt) {
       const t = new Date(d.updatedAt);
       document.getElementById('syncTime').textContent =

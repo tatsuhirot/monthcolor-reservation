@@ -132,6 +132,16 @@ function parseHolidayStylists(html) {
   return holidayIds;
 }
 
+// stylistMap の表示名をサービス種別に変換（admin.html の getServiceType と同じルール）
+function getServiceTypeName(rawName) {
+  if (!rawName) return 'その他';
+  if (/カラー|ヘア カラー/.test(rawName))             return 'カラー';
+  if (/ホワイト|ホワイトニング/.test(rawName))         return 'ホワイトニング';
+  if (/ドライ|ヘッドスパ/.test(rawName))               return 'ドライヘッドスパ';
+  if (/まつげ|まつ毛/.test(rawName))                   return 'まつ毛パーマ';
+  return 'その他';
+}
+
 // parse_calendar.js と同じ正規表現で空き枠を抽出
 function parseEmptySlots(html) {
   // id="empty_time_sid_fix_20260514_0930_T000779306_0"
@@ -174,7 +184,16 @@ function parseEmptySlots(html) {
     slots[date] = Object.keys(slotCounts[date]).filter(t => slotCounts[date][t] > 0).sort();
     activeStylists[date] = [...stylistSet].sort();
   }
-  return { slots, slotCounts, activeStylists };
+  // slotsByDateRaw: serviceSlots 計算用に休日除外済みの date→time→Set<stylistId> を返す
+  const slotsByDateRaw = {};
+  for (const [date, timeMap] of Object.entries(slotsByDate)) {
+    slotsByDateRaw[date] = {};
+    for (const [time, ids] of Object.entries(timeMap)) {
+      const active = [...ids].filter(id => !holidayIds.has(id));
+      if (active.length > 0) slotsByDateRaw[date][time] = active;
+    }
+  }
+  return { slots, slotCounts, activeStylists, slotsByDateRaw };
 }
 
 async function syncSlots() {
@@ -252,6 +271,7 @@ async function syncSlots() {
     const allSlots = {};
     const allSlotCounts = {};
     const allActiveStylists = {};
+    const allServiceSlots = {};
     let globalStylistMap = {};
     const reservationsByMonth = {}; // { "YYYY-MM": { "YYYY-MM-DD": [...] } }
     const now = new Date();
@@ -287,9 +307,26 @@ async function syncSlots() {
           }
         }
       }
-      const { slots, slotCounts, activeStylists } = parseEmptySlots(html);
+      const { slots, slotCounts, activeStylists, slotsByDateRaw } = parseEmptySlots(html);
       const stylistMap = parseStylistMap(html);
       if (Object.keys(stylistMap).length > 0) globalStylistMap = { ...globalStylistMap, ...stylistMap };
+
+      // サービス別空き時間: { date: { serviceType: [times] } }
+      for (const [date, timeMap] of Object.entries(slotsByDateRaw)) {
+        const bySvc = {};
+        for (const [time, stylistIds] of Object.entries(timeMap)) {
+          for (const id of stylistIds) {
+            const svc = getServiceTypeName(stylistMap[id] || globalStylistMap[id] || '');
+            if (svc === 'その他') continue;
+            if (!bySvc[svc]) bySvc[svc] = new Set();
+            bySvc[svc].add(time);
+          }
+        }
+        allServiceSlots[date] = {};
+        for (const [svc, times] of Object.entries(bySvc)) {
+          allServiceSlots[date][svc] = [...times].sort();
+        }
+      }
       const dayRes     = parseReservations(html, stylistMap);
 
       // 予約データを月別に蓄積
@@ -339,6 +376,7 @@ async function syncSlots() {
       slotCounts: allSlotCounts,
       activeStylists: allActiveStylists,
       stylistMap: globalStylistMap,
+      serviceSlots: allServiceSlots,
     }, null, 2);
     await put(SLOTS_KEY, payload, {
       access: 'public',
