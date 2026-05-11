@@ -305,6 +305,22 @@ body { font-family: "Hiragino Sans", Meiryo, sans-serif; background: #f0f2f0; co
 .sched-booked-direct .sched-range {
   display: block; font-size: 10px; font-weight: 400; opacity: .8; margin-top: 1px;
 }
+.sched-th-col-holiday {
+  background: #eeeeee; border: 1px solid #e0e0e0;
+  padding: 8px 12px; font-size: 13px; font-weight: 700;
+  text-align: center; color: #aaa;
+  position: sticky; top: 0; z-index: 2;
+}
+.sched-th-col-holiday::after {
+  content: " 休"; font-size: 10px; color: #bbb;
+}
+.sched-holiday-cell {
+  background: repeating-linear-gradient(
+    135deg,
+    #f0f0f0 0px, #f0f0f0 4px,
+    #e8e8e8 4px, #e8e8e8 8px
+  );
+}
 .sched-th-lane {
   background: #fafafa; border: 1px solid #e8e8e8;
   padding: 3px 4px; font-size: 10px; color: #bbb;
@@ -1760,12 +1776,14 @@ async function loadSchedule() {
         }).filter(st => st !== 'その他'))
       : null; // null = データなし → 全サービス表示
 
+    // 休日サービス: ST_MIN に含まれるが openServiceTypes に含まれないもの
+    const holidayServiceTypes = openServiceTypes
+      ? new Set(Object.keys(ST_MIN).filter(st => !openServiceTypes.has(st)))
+      : new Set(); // データなし → 休日なし
+
     const usedSts = new Set(allEntries.map(r => getServiceType(r.menu)));
-    // 予約がなくても「その日に営業中」のサービスは表示する
-    for (const st of Object.keys(ST_MIN)) {
-      // openServiceTypes がある場合は営業中のものだけ追加、ない場合は全て追加
-      if (!openServiceTypes || openServiceTypes.has(st)) usedSts.add(st);
-    }
+    // 固定4サービスは常に表示（休日でもグレーアウトで表示）
+    for (const st of Object.keys(ST_MIN)) usedSts.add(st);
     const serviceTypes = COL_ORDER.filter(st => usedSts.has(st));
     if (serviceTypes.length === 0) serviceTypes.push('その他');
 
@@ -1837,11 +1855,13 @@ async function loadSchedule() {
     let hRow1 = `<th class="sched-th-time"${needsSubRow ? ' rowspan="2"' : ''}>時刻</th>`;
     let hRow2 = '';
     for (const st of serviceTypes) {
-      const n = stLaneCounts[st];
+      const n = stLaneCounts[st] || 1;
+      const isHoliday = holidayServiceTypes.has(st);
+      const thCls = isHoliday ? 'sched-th-col-holiday' : 'sched-th-col';
       if (n === 1) {
-        hRow1 += `<th class="sched-th-col"${needsSubRow ? ' rowspan="2"' : ''}>${st}</th>`;
+        hRow1 += `<th class="${thCls}"${needsSubRow ? ' rowspan="2"' : ''}>${st}</th>`;
       } else {
-        hRow1 += `<th class="sched-th-col" colspan="${n}">${st}</th>`;
+        hRow1 += `<th class="${thCls}" colspan="${n}">${st}</th>`;
         for (let li = 0; li < n; li++) {
           hRow2 += `<th class="sched-th-lane">${LANE_NUMS[li] || li+1}</th>`;
         }
@@ -1870,7 +1890,11 @@ async function loadSchedule() {
           if (coveredUntil[st][li] > i) continue; // rowspan中はスキップ
 
           const booking = colGrid[st][li][i];
-          if (booking) {
+          const isHolidaySt = holidayServiceTypes.has(st);
+          if (isHolidaySt) {
+            // 休日サービス: 斜線グレーアウト（予約データは表示しない）
+            tds += `<td class="sched-cell sched-holiday-cell"></td>`;
+          } else if (booking) {
             const { span, r } = booking;
             coveredUntil[st][li] = i + span;
             let block;
