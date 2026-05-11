@@ -1263,6 +1263,11 @@ async function loadSyncTime() {
     const r = await fetch('/api/salonboard');
     if (!r.ok) return;
     const d = await r.json();
+    // slots-data を一括キャッシュ（renderSchedule の休日判定に使用）
+    slotsData = d.slots || slotsData;
+    slotCountsData = d.slotCounts || slotCountsData;
+    activeStylistsData = d.activeStylists || activeStylistsData;
+    stylistMapData = d.stylistMap || stylistMapData;
     if (d.updatedAt) {
       const t = new Date(d.updatedAt);
       document.getElementById('syncTime').textContent =
