@@ -144,8 +144,8 @@ function getServiceTypeName(rawName) {
 
 // parse_calendar.js と同じ正規表現で空き枠を抽出
 function parseEmptySlots(html) {
-  // id="empty_time_sid_fix_20260514_0930_T000779306_0"
-  const emptyRe = /id="empty_time_sid_fix_(\d{8})_(\d{4})_(T\d+)_(\d+)"/g;
+  // id="empty_time_sid_header_20260514_0930_T000779306_0" (旧: empty_time_sid_fix_)
+  const emptyRe = /id="empty_time_sid_(?:fix|header)_(\d{8})_(\d{4})_(T\d+)_(\d+)"/g;
   const seen = new Set();
   // slotsByDate: date → time → Set<stylistId>（空きスタイリスト人数を保持）
   const slotsByDate = {};
