@@ -994,6 +994,7 @@ function goStep(n) {
   if (n === 3) {
     const grid = document.getElementById('calGrid');
     if (grid) grid.innerHTML = '';
+    slotsLoaded = false; // サービス変更に備えて毎回リロード
     loadSlots().then(() => renderCalendar());
   }
   if (n === 5) renderConfirm();
@@ -1143,7 +1144,8 @@ async function loadSlots() {
   if (loading) loading.style.display = 'block';
 
   try {
-    const res = await fetch('/api/slots');
+    const serviceQuery = state.staff ? `?service=${encodeURIComponent(state.staff)}` : '';
+    const res = await fetch(`/api/slots${serviceQuery}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
 

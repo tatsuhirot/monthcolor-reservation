@@ -13,6 +13,9 @@ const { Resend } = require('resend');
 
 const QUEUE_KEY = 'reservations-queue.json';
 
+// サービス別の同時予約可能枠数
+const CAPACITY = { hair: 6, white: 1, lash: 2, spa: 1 };
+
 module.exports = async function handler(req, res) {
   // CORS
   const origin = req.headers.origin || '';
@@ -32,6 +35,18 @@ module.exports = async function handler(req, res) {
   try {
     // 既存のキューを読み込む
     const queue = await loadQueue();
+
+    // 二重予約チェック（同一サービス・日時が満席なら拒否）
+    const cap = CAPACITY[staffCategory] || 1;
+    const conflicts = queue.filter(r =>
+      r.data.staffCategory === staffCategory &&
+      r.data.date === date &&
+      r.data.time === time &&
+      ['pending', 'processing', 'completed'].includes(r.status)
+    );
+    if (conflicts.length >= cap) {
+      return res.status(409).json({ error: 'この時間帯はすでに満席です。別の時間帯をお選びください。' });
+    }
 
     // 新しい予約をキューに追加
     const reservation = {
