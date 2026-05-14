@@ -311,6 +311,19 @@ async function syncSlots() {
       const stylistMap = parseStylistMap(html);
       if (Object.keys(stylistMap).length > 0) globalStylistMap = { ...globalStylistMap, ...stylistMap };
 
+      // デバッグ: 最初の日だけ診断情報を出力
+      if (Object.keys(allSlots).length === 0) {
+        const emptyFixCount    = (html.match(/empty_time_sid_fix_/g) || []).length;
+        const emptyHeaderCount = (html.match(/empty_time_sid_header_/g) || []).length;
+        const stylistCount     = (html.match(/id="stylist_T/g) || []).length;
+        const pageTitle = (html.match(/<title>([^<]*)<\/title>/) || [])[1] || '?';
+        console.log(`🔍 [DEBUG] title="${pageTitle}" | empty_fix=${emptyFixCount} | empty_header=${emptyHeaderCount} | stylist=${stylistCount} | html_len=${html.length}`);
+        if (emptyFixCount + emptyHeaderCount === 0) {
+          // 問題あり: HTML冒頭500文字を出力
+          console.log('🔍 [DEBUG] html先頭500:', html.slice(0, 500).replace(/\s+/g, ' '));
+        }
+      }
+
       // サービス別空き時間: { date: { serviceType: [times] } }
       for (const [date, timeMap] of Object.entries(slotsByDateRaw)) {
         const bySvc = {};
