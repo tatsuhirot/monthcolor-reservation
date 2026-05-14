@@ -14,9 +14,10 @@ on:
         default: ''
 
 jobs:
-  sync:
+  # ── Job 1: coming-soon 同期（認証・サイトが別のため分離） ─────────────
+  sync-comingsoon:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     steps:
       - name: Checkout
@@ -45,6 +46,27 @@ jobs:
           else
             node sync_comingsoon.js --days 7
           fi
+
+  # ── Job 2: SalonBoard 空き枠同期（2ヶ月分・日ごとアクセス） ──────────
+  sync-slots:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright (Firefox only)
+        run: npx playwright install firefox --with-deps
 
       - name: Sync SalonBoard slots
         env:
