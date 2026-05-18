@@ -58,20 +58,21 @@ async function main() {
 async function syncSlotsIfNeeded() {
   const elapsed = Date.now() - lastSlotsSync;
   if (elapsed < SLOTS_SYNC_INTERVAL) return; // まだ時間になっていない
+  await runSyncSlots();
+}
 
-  // Playwright がすでに動いている場合はスキップ
+// ── 空き枠同期の実体（強制実行用。ロックチェックのみ） ───────────────────
+async function runSyncSlots() {
   if (fs.existsSync(lockPath)) {
     console.log(`[${now()}] ⏭ 空き枠同期スキップ（Playwright ロック中）`);
     return;
   }
 
   console.log(`[${now()}] 🗓 空き枠同期を開始します...`);
-  // ロックは sync_slots.js 自身が管理する（ここで書くと子プロセスが弾かれる）
-
   const result = spawnSync('node', ['sync_slots.js'], {
     cwd: __dirname,
-    stdio: 'inherit',  // ログをそのまま表示
-    timeout: 5 * 60_000, // 5分タイムアウト
+    stdio: 'inherit',
+    timeout: 20 * 60_000,
   });
   if (result.status === 0) {
     lastSlotsSync = Date.now();
@@ -79,6 +80,14 @@ async function syncSlotsIfNeeded() {
   } else {
     console.error(`[${now()}] ❌ 空き枠同期失敗 (exit: ${result.status})`);
   }
+}
+
+// キャンセル日が今日から3日以内か判定
+function isWithin3Days(dateStr) {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const target = new Date(dateStr);
+  const diffDays = Math.floor((target - today) / (1000 * 60 * 60 * 24));
+  return diffDays >= 0 && diffDays <= 2; // 当日(0)・翌日(1)・翌々日(2)
 }
 
 // ── リトライ処理 ──────────────────────────────────────────────────
@@ -126,6 +135,11 @@ async function processQueue() {
         await registerInSalonBoard(data);
       } else if (type === 'cancel') {
         await cancelInSalonBoard(data);
+        // 直近3日以内のキャンセルは即時sync（当日は特に重要）
+        if (isWithin3Days(data.date)) {
+          console.log(`[${now()}] 📅 直近3日以内のキャンセル（${data.date}）→ 即時sync実行`);
+          await runSyncSlots();
+        }
       }
       await updateStatus(queue, id, 'completed');
       console.log(`[${now()}] ✅ 完了 [${type}]: ${id}`);
