@@ -357,11 +357,14 @@ async function syncSlots() {
 
       const dayCount  = Object.keys(slots).length;
       const slotCount = Object.values(slots).reduce((s, a) => s + a.length, 0);
+      // 空き0件でも必ずdateLabelを記録（undefined=sync対象外、[]=sync済み全埋まり を明確に区別するため）
+      allSlots[dateLabel] = slots[dateLabel] ?? [];
       if (dayCount > 0) {
-        Object.assign(allSlots, slots);
         Object.assign(allSlotCounts, slotCounts);
         Object.assign(allActiveStylists, activeStylists);
         console.log(`✅ ${label}: ${slotCount}枠 / 予約${dayRes.length}件`);
+      } else {
+        console.log(`⬜ ${label}: 空き0枠 / 予約${dayRes.length}件`);
       }
 
       current.setDate(current.getDate() + 1);
