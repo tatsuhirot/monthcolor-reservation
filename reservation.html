@@ -1093,9 +1093,9 @@ function renderCalendar() {
     const isPast = date < today;
     const dateStr = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const isSelected = state.date && state.date === dateStr;
-    // null = 未ロード(全表示) / undefined = 該当日データなし(楽観的に表示) / [] = 全枠埋まり(非表示)
+    // null = API障害フォールバック(全表示) / undefined = sync未処理(選択不可) / [] = 全枠埋まり(選択不可)
     const slotForDate = AVAILABLE_SLOTS?.[dateStr];
-    const hasSlot = !isPast && (AVAILABLE_SLOTS === null || slotForDate === undefined || slotForDate.length > 0);
+    const hasSlot = !isPast && (AVAILABLE_SLOTS === null || (slotForDate !== undefined && slotForDate.length > 0));
     const cls = [
       'calendar-grid__day',
       isPast ? 'past' : '',

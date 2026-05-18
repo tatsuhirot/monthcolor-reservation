@@ -64,11 +64,13 @@ module.exports = async function handler(req, res) {
     const slotsData = await loadSlotsData();
     if (slotsData !== null) {
       const availableForDate = slotsData[date];
-      if (availableForDate !== undefined) {
-        const blockedSlot = newSlots.find(s => !availableForDate.includes(s));
-        if (blockedSlot) {
-          return res.status(409).json({ error: 'この時間帯はすでに埋まっています。別の時間帯をお選びください。' });
-        }
+      // undefined = sync未処理 / [] = 全枠埋まり → どちらも拒否
+      if (!availableForDate) {
+        return res.status(409).json({ error: 'この時間帯の空き情報が取得できていません。お電話にてご確認ください。' });
+      }
+      const blockedSlot = newSlots.find(s => !availableForDate.includes(s));
+      if (blockedSlot) {
+        return res.status(409).json({ error: 'この時間帯はすでに埋まっています。別の時間帯をお選びください。' });
       }
     }
 
