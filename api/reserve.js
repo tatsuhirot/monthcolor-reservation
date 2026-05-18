@@ -7,11 +7,12 @@
  * 予約受付後、お客様に確認メールを送信する。
  */
 
-const { put, head, del } = require('@vercel/blob');
+const { put, head, del, list } = require('@vercel/blob');
 const { v4: uuidv4 } = require('uuid');
 const { Resend } = require('resend');
 
 const QUEUE_KEY = 'reservations-queue.json';
+const SLOTS_KEY = 'slots-data.json';
 
 // サービス別の同時予約可能枠数
 const CAPACITY = { hair: 6, white: 1, lash: 2, spa: 1 };
@@ -33,10 +34,19 @@ module.exports = async function handler(req, res) {
   }
 
   try {
+    // SalonBoard空き枠チェック（電話・直接予約による埋まりを検出）
+    const slotsData = await loadSlotsData();
+    if (slotsData !== null) {
+      const availableForDate = slotsData[date]; // undefined = その日のデータなし, [] = 全枠埋まり
+      if (!availableForDate || !availableForDate.includes(time)) {
+        return res.status(409).json({ error: 'この時間帯はすでに埋まっています。別の時間帯をお選びください。' });
+      }
+    }
+
     // 既存のキューを読み込む
     const queue = await loadQueue();
 
-    // 二重予約チェック（同一サービス・日時が満席なら拒否）
+    // 二重予約チェック（自社フォーム経由の予約が満席なら拒否）
     const cap = CAPACITY[staffCategory] || 1;
     const conflicts = queue.filter(r =>
       r.data.staffCategory === staffCategory &&
@@ -185,6 +195,19 @@ async function sendStaffNotification({ date, time, name, menuName, phone, email,
   }
 
   await Promise.all(tasks);
+}
+
+// ── SalonBoard空き枠データ読み込み ────────────────────────────
+// 戻り値: { "YYYY-MM-DD": ["HH:MM", ...] } | null（未同期時はnull→チェックスキップ）
+async function loadSlotsData() {
+  try {
+    const { blobs } = await list({ prefix: SLOTS_KEY, limit: 1, token: process.env.BLOB_READ_WRITE_TOKEN });
+    if (!blobs.length) return null;
+    const data = await fetch(blobs[0].url).then(r => r.json());
+    return data.slots || null;
+  } catch {
+    return null; // 取得失敗時はチェックをスキップ（フォールバック）
+  }
 }
 
 // ── キュー読み込み ─────────────────────────────────────────────
