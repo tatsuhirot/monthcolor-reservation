@@ -37,8 +37,10 @@ module.exports = async function handler(req, res) {
     // SalonBoard空き枠チェック（電話・直接予約による埋まりを検出）
     const slotsData = await loadSlotsData();
     if (slotsData !== null) {
-      const availableForDate = slotsData[date]; // undefined = その日のデータなし, [] = 全枠埋まり
-      if (!availableForDate || !availableForDate.includes(time)) {
+      const availableForDate = slotsData[date];
+      // availableForDate が undefined = その日のデータ未取得 → チェックスキップ（許可）
+      // availableForDate が [] or 時間が含まれない = 満席 → 拒否
+      if (availableForDate !== undefined && !availableForDate.includes(time)) {
         return res.status(409).json({ error: 'この時間帯はすでに埋まっています。別の時間帯をお選びください。' });
       }
     }
