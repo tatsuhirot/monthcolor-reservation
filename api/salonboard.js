@@ -7,11 +7,10 @@
  * GET /api/salonboard?today=1             → 今日のSB予約（today-reservations と同等）
  */
 
-const { head, list } = require('@vercel/blob');
-const SLOTS_KEY = 'slots-data.json';
+const { head } = require('@vercel/blob');
+const { CAPACITY, ALL_TIMES, buildBookedMap, loadQueue } = require('./_shared');
 
-// サービス別の同時予約可能枠数
-const CAPACITY = { hair: 6, white: 1, lash: 2, spa: 1 };
+const SLOTS_KEY = 'slots-data.json';
 
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -24,48 +23,28 @@ module.exports = async function handler(req, res) {
   const { date, today } = req.query;
 
   // ── 空き枠データ（認証不要）──────────────────────────────────
+  // メール→queueが正の情報源。queueから直接空き枠を計算する。
+  // slots-data.json（スクレイピング）は検証用であり、ここでは使わない。
   if (!date && !today) {
     try {
-      const { blobs } = await list({
-        prefix: SLOTS_KEY, limit: 1,
-        token: process.env.BLOB_READ_WRITE_TOKEN,
-      });
-      if (!blobs.length) return res.status(200).json({ updatedAt: null, slots: null });
-      const data = await fetch(blobs[0].url).then(r => r.json());
-
-      // ?service=hair などが指定された場合、自社フォーム予約済み枠を差し引く
       const serviceParam = req.query.service;
-      if (serviceParam && data.slots) {
-        const cap = CAPACITY[serviceParam] || 1;
-        try {
-          const queueMeta = await head('reservations-queue.json', { token: process.env.BLOB_READ_WRITE_TOKEN });
-          if (queueMeta) {
-            const queue = await fetch(queueMeta.url).then(r => r.json()).catch(() => []);
-            // サービス・日時ごとの予約数を集計
-            const booked = {};
-            for (const r of queue) {
-              if (r.data?.staffCategory === serviceParam && ['pending', 'processing', 'completed'].includes(r.status)) {
-                const key = `${r.data.date}:${r.data.time}`;
-                booked[key] = (booked[key] || 0) + 1;
-              }
-            }
-            // 満席の時間帯を除外
-            for (const dateStr of Object.keys(data.slots)) {
-              data.slots[dateStr] = (data.slots[dateStr] || []).filter(time => {
-                const key = `${dateStr}:${time}`;
-                return (booked[key] || 0) < cap;
-              });
-            }
-          }
-        } catch (e) {
-          // キュー取得失敗は無視（スロットデータをそのまま返す）
-          console.warn('⚠️ キュー取得失敗（スロット差し引きスキップ）:', e.message);
-        }
+      const cap = CAPACITY[serviceParam] || 1;
+      const queue = await loadQueue(process.env.BLOB_READ_WRITE_TOKEN);
+      const booked = buildBookedMap(queue, serviceParam);
+
+      // 今日から2ヶ月分の日付に対して空き時間を計算
+      const slots = {};
+      const now = new Date(); now.setHours(0, 0, 0, 0);
+      const end = new Date(now.getFullYear(), now.getMonth() + 2, 0);
+      for (let d = new Date(now); d <= end; d.setDate(d.getDate() + 1)) {
+        const dateStr = d.toISOString().slice(0, 10);
+        slots[dateStr] = ALL_TIMES.filter(t => (booked[`${dateStr}:${t}`] || 0) < cap);
       }
 
       res.setHeader('Cache-Control', 'no-store');
-      return res.status(200).json(data);
+      return res.status(200).json({ updatedAt: new Date().toISOString(), slots });
     } catch (e) {
+      console.error('⚠️ 空き枠計算エラー:', e.message);
       return res.status(200).json({ updatedAt: null, slots: null });
     }
   }

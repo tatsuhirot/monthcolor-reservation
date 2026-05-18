@@ -7,37 +7,10 @@
  * 予約受付後、お客様に確認メールを送信する。
  */
 
-const { put, head, del, list } = require('@vercel/blob');
+const { put } = require('@vercel/blob');
 const { v4: uuidv4 } = require('uuid');
 const { Resend } = require('resend');
-
-const QUEUE_KEY = 'reservations-queue.json';
-const SLOTS_KEY = 'slots-data.json';
-
-// サービス別の同時予約可能枠数
-const CAPACITY = { hair: 6, white: 1, lash: 2, spa: 1 };
-
-// メニュー別施術時間（分）— 幅があるメニューは上限を使用
-// ※ 実際の時間はサロンに要確認（confirmation.md 参照）
-const MENU_DURATION = {
-  h1: 70, h2: 90, h3: 90, h4: 120,   // ヘアカラー系
-  w1: 30, w2: 60,                      // ホワイトニング
-  l1: 60, l2: 75,                      // まつ毛パーマ
-  s1: 30, s2: 60, s3: 90,             // ドライヘッドスパ
-};
-
-// 開始時刻と施術時間から占有スロット一覧（30分単位）を返す
-// 例: ('10:00', 'h4') → ['10:00','10:30','11:00','11:30']
-function getOccupiedSlots(timeStr, menuId) {
-  const durationMin = MENU_DURATION[menuId] || 60; // menuId不明時は60分
-  const [h, m] = timeStr.split(':').map(Number);
-  const startMin = h * 60 + m;
-  const slotCount = Math.ceil(durationMin / 30);
-  return Array.from({ length: slotCount }, (_, i) => {
-    const t = startMin + i * 30;
-    return `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
-  });
-}
+const { CAPACITY, getOccupiedSlots, buildBookedMap, loadQueue, QUEUE_KEY } = require('./_shared');
 
 module.exports = async function handler(req, res) {
   // CORS
@@ -59,40 +32,14 @@ module.exports = async function handler(req, res) {
   const newSlots = getOccupiedSlots(time, menuId);
 
   try {
-    // SalonBoard空き枠チェック（電話・直接予約による埋まりを検出）
-    // 施術時間分のスロットが全て空いているか確認
-    const slotsData = await loadSlotsData();
-    if (slotsData !== null) {
-      const availableForDate = slotsData[date];
-      // undefined = sync未処理 / [] = 全枠埋まり → どちらも拒否
-      if (!availableForDate) {
-        return res.status(409).json({ error: 'この時間帯の空き情報が取得できていません。お電話にてご確認ください。' });
-      }
-      const blockedSlot = newSlots.find(s => !availableForDate.includes(s));
-      if (blockedSlot) {
-        return res.status(409).json({ error: 'この時間帯はすでに埋まっています。別の時間帯をお選びください。' });
-      }
-    }
-
-    // 既存のキューを読み込む
-    const queue = await loadQueue();
-
-    // 二重予約チェック（施術時間を考慮したスロット重複チェック）
+    // queue から空き枠を確認（メール→queueが正の情報源）
+    const queue = await loadQueue(process.env.BLOB_READ_WRITE_TOKEN);
     const cap = CAPACITY[staffCategory] || 1;
-    // 既存予約ごとに占有スロットを計算し、新規と重複するスロットのカウントを集計
-    const overlapCount = {};
-    for (const r of queue) {
-      if (r.data.staffCategory !== staffCategory) continue;
-      if (r.data.date !== date) continue;
-      if (!['pending', 'processing', 'completed'].includes(r.status)) continue;
-      const existingSlots = getOccupiedSlots(r.data.time, r.data.menuId);
-      for (const s of existingSlots) {
-        if (newSlots.includes(s)) {
-          overlapCount[s] = (overlapCount[s] || 0) + 1;
-        }
-      }
-    }
-    if (Object.values(overlapCount).some(count => count >= cap)) {
+    const booked = buildBookedMap(queue, staffCategory);
+
+    // 新規予約の占有スロットが全て空きか確認
+    const fullSlot = newSlots.find(s => (booked[`${date}:${s}`] || 0) >= cap);
+    if (fullSlot) {
       return res.status(409).json({ error: 'この時間帯はすでに満席です。別の時間帯をお選びください。' });
     }
 
@@ -233,31 +180,6 @@ async function sendStaffNotification({ date, time, name, menuName, phone, email,
   }
 
   await Promise.all(tasks);
-}
-
-// ── SalonBoard空き枠データ読み込み ────────────────────────────
-// 戻り値: { "YYYY-MM-DD": ["HH:MM", ...] } | null（未同期時はnull→チェックスキップ）
-async function loadSlotsData() {
-  try {
-    const { blobs } = await list({ prefix: SLOTS_KEY, limit: 1, token: process.env.BLOB_READ_WRITE_TOKEN });
-    if (!blobs.length) return null;
-    const data = await fetch(blobs[0].url).then(r => r.json());
-    return data.slots || null;
-  } catch {
-    return null; // 取得失敗時はチェックをスキップ（フォールバック）
-  }
-}
-
-// ── キュー読み込み ─────────────────────────────────────────────
-async function loadQueue() {
-  try {
-    const blob = await head(QUEUE_KEY, { token: process.env.BLOB_READ_WRITE_TOKEN });
-    if (!blob) return [];
-    const res = await fetch(blob.url);
-    return await res.json();
-  } catch {
-    return [];
-  }
 }
 
 // ── 確認メール送信 ─────────────────────────────────────────────
