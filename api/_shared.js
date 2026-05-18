@@ -80,4 +80,37 @@ async function loadQueue(token) {
   }
 }
 
-module.exports = { CAPACITY, MENU_DURATION, ALL_TIMES, getOccupiedSlots, buildBookedMap, loadQueue, QUEUE_KEY };
+// comingsoon メニュー名 → サービスカテゴリ変換
+function menuToCategory(menu) {
+  const s = (menu || '').replace(/[\s　]/g, '');
+  if (/ホワイトニング/.test(s)) return 'white';
+  if (/まつ[毛げ]/.test(s)) return 'lash';
+  if (/ヘッドスパ/.test(s)) return 'spa';
+  return 'hair'; // カラー・染め・トリートメント etc. すべてhair
+}
+
+// comingsoon の timeRange 文字列（例: "9:40-10:30"）から
+// ALL_TIMES（30分刻み）と重なる占有スロット一覧を返す。
+// off-grid開始（09:40等）でも正しくALL_TIMES槽にカウントされる。
+function occupiedFromTimeRange(timeRange, fallbackTime) {
+  const m = (timeRange || '').match(/^(\d{1,2}):(\d{2})-(\d{1,2}):(\d{2})$/);
+  if (m) {
+    const startMin = Number(m[1]) * 60 + Number(m[2]);
+    const endMin   = Number(m[3]) * 60 + Number(m[4]);
+    if (endMin > startMin) {
+      // 予約時間帯 [startMin, endMin) と重なる ALL_TIMES スロットを返す
+      return ALL_TIMES.filter(t => {
+        const [h, min] = t.split(':').map(Number);
+        const slotStart = h * 60 + min;
+        return startMin < slotStart + 30 && endMin > slotStart;
+      });
+    }
+  }
+  return getOccupiedSlots(fallbackTime, null);
+}
+
+module.exports = {
+  CAPACITY, MENU_DURATION, ALL_TIMES,
+  getOccupiedSlots, normalizeCategory, buildBookedMap, loadQueue, QUEUE_KEY,
+  menuToCategory, occupiedFromTimeRange,
+};
