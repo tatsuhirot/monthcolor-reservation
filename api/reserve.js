@@ -17,6 +17,28 @@ const SLOTS_KEY = 'slots-data.json';
 // サービス別の同時予約可能枠数
 const CAPACITY = { hair: 6, white: 1, lash: 2, spa: 1 };
 
+// メニュー別施術時間（分）— 幅があるメニューは上限を使用
+// ※ 実際の時間はサロンに要確認（confirmation.md 参照）
+const MENU_DURATION = {
+  h1: 70, h2: 90, h3: 90, h4: 120,   // ヘアカラー系
+  w1: 30, w2: 60,                      // ホワイトニング
+  l1: 60, l2: 75,                      // まつ毛パーマ
+  s1: 30, s2: 60, s3: 90,             // ドライヘッドスパ
+};
+
+// 開始時刻と施術時間から占有スロット一覧（30分単位）を返す
+// 例: ('10:00', 'h4') → ['10:00','10:30','11:00','11:30']
+function getOccupiedSlots(timeStr, menuId) {
+  const durationMin = MENU_DURATION[menuId] || 60; // menuId不明時は60分
+  const [h, m] = timeStr.split(':').map(Number);
+  const startMin = h * 60 + m;
+  const slotCount = Math.ceil(durationMin / 30);
+  return Array.from({ length: slotCount }, (_, i) => {
+    const t = startMin + i * 30;
+    return `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
+  });
+}
+
 module.exports = async function handler(req, res) {
   // CORS
   const origin = req.headers.origin || '';
@@ -27,36 +49,48 @@ module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { date, time, name, menuName, staffCategory, phone, email, memo } = req.body || {};
+  const { date, time, name, menuName, menuId, staffCategory, phone, email, memo } = req.body || {};
 
   if (!date || !time || !name) {
     return res.status(400).json({ error: '日付・時間・お名前は必須です' });
   }
 
+  // 新しい予約が占有するスロット一覧（施術時間を考慮）
+  const newSlots = getOccupiedSlots(time, menuId);
+
   try {
     // SalonBoard空き枠チェック（電話・直接予約による埋まりを検出）
+    // 施術時間分のスロットが全て空いているか確認
     const slotsData = await loadSlotsData();
     if (slotsData !== null) {
       const availableForDate = slotsData[date];
-      // availableForDate が undefined = その日のデータ未取得 → チェックスキップ（許可）
-      // availableForDate が [] or 時間が含まれない = 満席 → 拒否
-      if (availableForDate !== undefined && !availableForDate.includes(time)) {
-        return res.status(409).json({ error: 'この時間帯はすでに埋まっています。別の時間帯をお選びください。' });
+      if (availableForDate !== undefined) {
+        const blockedSlot = newSlots.find(s => !availableForDate.includes(s));
+        if (blockedSlot) {
+          return res.status(409).json({ error: 'この時間帯はすでに埋まっています。別の時間帯をお選びください。' });
+        }
       }
     }
 
     // 既存のキューを読み込む
     const queue = await loadQueue();
 
-    // 二重予約チェック（自社フォーム経由の予約が満席なら拒否）
+    // 二重予約チェック（施術時間を考慮したスロット重複チェック）
     const cap = CAPACITY[staffCategory] || 1;
-    const conflicts = queue.filter(r =>
-      r.data.staffCategory === staffCategory &&
-      r.data.date === date &&
-      r.data.time === time &&
-      ['pending', 'processing', 'completed'].includes(r.status)
-    );
-    if (conflicts.length >= cap) {
+    // 既存予約ごとに占有スロットを計算し、新規と重複するスロットのカウントを集計
+    const overlapCount = {};
+    for (const r of queue) {
+      if (r.data.staffCategory !== staffCategory) continue;
+      if (r.data.date !== date) continue;
+      if (!['pending', 'processing', 'completed'].includes(r.status)) continue;
+      const existingSlots = getOccupiedSlots(r.data.time, r.data.menuId);
+      for (const s of existingSlots) {
+        if (newSlots.includes(s)) {
+          overlapCount[s] = (overlapCount[s] || 0) + 1;
+        }
+      }
+    }
+    if (Object.values(overlapCount).some(count => count >= cap)) {
       return res.status(409).json({ error: 'この時間帯はすでに満席です。別の時間帯をお選びください。' });
     }
 
@@ -64,7 +98,7 @@ module.exports = async function handler(req, res) {
     const reservation = {
       id:        uuidv4(),
       status:    'pending',  // pending | processing | completed | failed
-      data:      { date, time, name, menuName, staffCategory, phone, email, memo },
+      data:      { date, time, name, menuName, menuId, staffCategory, phone, email, memo },
       createdAt: new Date().toISOString(),
       processedAt: null,
       error:     null,
