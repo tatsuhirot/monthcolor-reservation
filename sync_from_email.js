@@ -118,9 +118,9 @@ function parseEmail(text) {
   const date = dtMatch ? `${dtMatch[1]}-${dtMatch[2]}-${dtMatch[3]}` : '';
   const time = dtMatch ? `${dtMatch[4]}:${dtMatch[5]}` : '';
 
-  // クーポン（メニュー名として使う）
-  const couponMatch = text.match(/【([^】]+)】/);
-  const menuName = couponMatch ? couponMatch[1] : menuRaw;
+  // クーポン行から実際のメニュー名を取得（「【クーポン名】メニュー名」形式）
+  const couponLineMatch = text.match(/【[^】]+】\s*([^\r\n\s][^\r\n]+)/);
+  const menuName = couponLineMatch ? couponLineMatch[1].trim() : menuRaw;
 
   return { reserveNo, kanjiName, kanaName, date, time, stylistRaw, menuName };
 }
@@ -182,6 +182,34 @@ function findInQueue(queue, { reserveNo, date, time, kanjiName }) {
   );
 }
 
+// ── スタイリスト名 → カテゴリコード変換 ─────────────────────────────
+// HPBメールの「■スタイリスト」欄は「ヘア　カラー」等のサービス名が入る
+function toCategory(stylistRaw) {
+  const s = (stylistRaw || '').replace(/[\s　]/g, '');
+  if (/ホワイトニング/.test(s))          return 'white';
+  if (/まつ[毛げ]|ラッシュ|ラッシュリフト/.test(s)) return 'lash';
+  if (/ヘッドスパ|スパ/.test(s))         return 'spa';
+  if (/ヘア|カラー/.test(s))             return 'hair';
+  return 'hair'; // デフォルト
+}
+
+// メニュー名 → menuId 変換（施術時間算出に使用）
+function toMenuId(menuName) {
+  const m = (menuName || '');
+  if (/ハイライト/.test(m))                          return 'h4';
+  if (/カラー.*トリートメント|トリートメント.*カラー/.test(m)) return 'h3';
+  if (/フルカラー/.test(m))                          return 'h2';
+  if (/リタッチ/.test(m))                            return 'h1';
+  if (/ホワイトニング/.test(m) && /60/.test(m))      return 'w2';
+  if (/ホワイトニング/.test(m))                      return 'w1';
+  if (/まつ.*リフト|リフト.*まつ/.test(m))           return 'l2';
+  if (/まつ/.test(m))                                return 'l1';
+  if (/スパ/.test(m) && /90/.test(m))                return 's3';
+  if (/スパ/.test(m) && /60/.test(m))                return 's2';
+  if (/スパ/.test(m))                                return 's1';
+  return null;
+}
+
 // ── 各メールタイプの処理 ──────────────────────────────────────────
 function handleNew(queue, parsed, fileName) {
   const { reserveNo, kanjiName, kanaName, date, time, stylistRaw, menuName } = parsed;
@@ -204,7 +232,8 @@ function handleNew(queue, parsed, fileName) {
       name:          kanjiName,
       kanaName,
       menuName,
-      staffCategory: stylistRaw,
+      menuId:        toMenuId(menuName),
+      staffCategory: toCategory(stylistRaw),
       phone:         '',
       email:         '',
       memo:          `HPB予約番号: ${reserveNo}`,

@@ -38,12 +38,24 @@ function getOccupiedSlots(timeStr, menuId) {
   });
 }
 
+// staffCategory の正規化（旧データ互換: "ヘア　カラー" → "hair" 等）
+function normalizeCategory(raw) {
+  if (['hair', 'white', 'lash', 'spa'].includes(raw)) return raw;
+  const s = (raw || '').replace(/[\s　]/g, '');
+  if (/ホワイトニング/.test(s))               return 'white';
+  if (/まつ[毛げ]|ラッシュ/.test(s))          return 'lash';
+  if (/ヘッドスパ|スパ/.test(s))              return 'spa';
+  if (/ヘア|カラー/.test(s))                  return 'hair';
+  return null; // 判定不能
+}
+
 // queue から (date, time) ごとの予約数を集計して返す
 // 戻り値: { "YYYY-MM-DD:HH:MM": count }
 function buildBookedMap(queue, serviceParam) {
   const booked = {};
   for (const r of queue) {
-    if (serviceParam && r.data?.staffCategory !== serviceParam) continue;
+    const category = normalizeCategory(r.data?.staffCategory);
+    if (serviceParam && category !== serviceParam) continue;
     if (!['pending', 'processing', 'completed'].includes(r.status)) continue;
     const slots = getOccupiedSlots(r.data.time, r.data.menuId);
     for (const slot of slots) {
