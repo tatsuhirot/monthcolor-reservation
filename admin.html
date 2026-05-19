@@ -305,6 +305,18 @@ body { font-family: "Hiragino Sans", Meiryo, sans-serif; background: #f0f2f0; co
 .sched-booked-direct .sched-range {
   display: block; font-size: 10px; font-weight: 400; opacity: .8; margin-top: 1px;
 }
+.sched-booked-queue {
+  display: block; width: 100%; height: 100%; min-height: 24px;
+  background: #2e7d32; color: #fff;
+  border-left: 3px solid #66bb6a;
+  padding: 3px 6px; font-size: 12px; font-weight: 700;
+  text-align: left; box-sizing: border-box; overflow: hidden;
+}
+.sched-booked-queue .sched-range {
+  display: block; font-size: 10px; font-weight: 400; opacity: .8; margin-top: 1px;
+}
+.sched-booked-queue.pending { background: #f57c00; border-left-color: #ffb74d; }
+.sched-booked-queue.processing { background: #1565c0; border-left-color: #64b5f6; }
 .sched-th-col-holiday {
   background: #eeeeee; border: 1px solid #e0e0e0;
   padding: 8px 12px; font-size: 13px; font-weight: 700;
@@ -1802,13 +1814,39 @@ async function loadSchedule() {
   const dow = ['日','月','火','水','木','金','土'][schedViewDate.getDay()];
   label.textContent = `${schedViewDate.getMonth()+1}/${schedViewDate.getDate()}(${dow})`;
 
+  // メニューID → 施術時間（分）
+  const MENU_DURATION = {
+    h1: 70, h2: 90, h3: 90, h4: 120,
+    w1: 30, w2: 60,
+    l1: 60, l2: 75,
+    s1: 30, s2: 60, s3: 90,
+  };
+  function calcTimeRange(time, menuId) {
+    const dur = MENU_DURATION[menuId] || 60;
+    const [h, m] = time.split(':').map(Number);
+    const endMin = h * 60 + m + dur;
+    const eh = String(Math.floor(endMin / 60)).padStart(2, '0');
+    const em = String(endMin % 60).padStart(2, '0');
+    return `${time}-${eh}:${em}`;
+  }
+
   try {
-    // comingsoonのみ使用（salonboard-{month}.jsonは古く名前・IDなしのスロットマーカーのため除外）
-    const csRes = await fetch(`/api/comingsoon?date=${dateStr}`, {
+    // reservations-queue.json（このシステム経由の予約）を使用
+    const qRes = await fetch('/api/reservations', {
       headers: { Authorization: `Bearer ${password}` },
     }).then(r => r.json()).catch(() => ({ reservations: [] }));
 
-    const allEntries = (csRes.reservations || []).map(r => ({ ...r, _src: 'cs' }));
+    const allEntries = (qRes.reservations || [])
+      .filter(r => r.data?.date === dateStr && r.status !== 'cancelled')
+      .map(r => ({
+        _src: 'queue',
+        _status: r.status,
+        time: r.data.time,
+        timeRange: calcTimeRange(r.data.time, r.data.menuId),
+        name: r.data.name || '—',
+        menu: r.data.menuName || '',
+        staffCategory: r.data.staffCategory,
+      }));
 
     // 9:00〜20:00 10分刻み + 実データの開始時刻
     const baseSlots = [];
@@ -1963,18 +2001,12 @@ async function loadSchedule() {
             const { span, r } = booking;
             coveredUntil[st][li] = i + span;
             let block;
-            if (r._src === 'cs') {
-              const safeName = (r.name || '—').replace(/'/g, "\\'");
+            if (r._src === 'queue') {
               const range = r.timeRange ? `<span class="sched-range">${r.timeRange}</span>` : '';
-              block = `<div class="sched-booked-cs" onclick="openCsDetailByRef('${safeName}','${dateStr}')" title="${r.menu||''}">${r.name||'—'}${range}</div>`;
-            } else if (r.source === 'direct') {
-              // SalonBoard 直接/電話予約（HPBなし）
-              const label = r.customerName && r.customerName !== '—' ? r.customerName : (r.menu || '直接');
-              const range = r.timeRange && r.timeRange.includes('-') ? `<span class="sched-range">${r.timeRange}</span>` : '';
-              block = `<div class="sched-booked-direct" title="${r.menu||'直接予約'}">${label}${range}</div>`;
+              const cls = `sched-booked-queue${r._status === 'pending' ? ' pending' : r._status === 'processing' ? ' processing' : ''}`;
+              block = `<div class="${cls}" title="${r.menu||''}">${r.name||'—'}${range}</div>`;
             } else {
-              // SalonBoard HPB予約
-              block = `<div class="sched-booked-sb" title="${r.menu||''}">${r.name||r.customerName||r.menu||'SB'}</div>`;
+              block = `<div class="sched-booked-sb" title="${r.menu||''}">${r.name||'—'}</div>`;
             }
             tds += `<td class="sched-cell" rowspan="${span}">${block}</td>`;
           } else {
