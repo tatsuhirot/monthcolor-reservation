@@ -1903,9 +1903,10 @@ async function loadSchedule() {
         entryLane.set(r, assigned);
       }
 
-      // 固定スタイリスト枠数を上限・下限として使用（カラー6/ホワイトニング1/まつ毛パーマ2/ドライヘッドスパ1）
+      // 実際の並列予約数と固定容量の大きい方を使用
+      // （容量超過時にMath.minでキャップするとcolGrid未初期化エラーになるため上限なし）
       const capacity = ST_CAPACITY[st] || 1;
-      stLaneCounts[st] = Math.min(Math.max(laneEndMins.length, capacity), capacity);
+      stLaneCounts[st] = Math.max(laneEndMins.length, capacity);
     }
 
     // colGrid[st][laneIdx][slotIdx] = {span, r}
