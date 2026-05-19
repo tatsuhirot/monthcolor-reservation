@@ -23,28 +23,68 @@ module.exports = async function handler(req, res) {
   const { date, today } = req.query;
 
   // ── 空き枠データ（認証不要）──────────────────────────────────
-  // このシステムがcoming soonの後継。comingsoonデータは使用しない。
-  // 情報源: reservations-queue.json（このシステム経由の予約のみ）
+  // ベース: slots-data.json（sync_slots.js が SalonBoard からスクレイピング）の serviceSlots
+  // 追加差し引き: reservations-queue.json（このシステム経由の pending/completed 予約）
   if (!date && !today) {
     try {
       const serviceParam = req.query.service;
       const cap = CAPACITY[serviceParam] || 1;
       const token = process.env.BLOB_READ_WRITE_TOKEN;
 
+      // サービスID → SalonBoard 表示名マップ
+      const SERVICE_JP = {
+        hair:  'カラー',
+        white: 'ホワイトニング',
+        lash:  'まつ毛パーマ',
+        spa:   'ドライヘッドスパ',
+      };
+      const jpName = SERVICE_JP[serviceParam];
+
+      // slots-data.json からベース空き枠を取得
+      let slotsBase = null; // null = フォールバック（全枠表示）
+      let updatedAt = null;
+      try {
+        const blobMeta = await head(SLOTS_KEY, { token });
+        if (blobMeta) {
+          const blobData = await fetch(blobMeta.url).then(r => r.json());
+          updatedAt = blobData.updatedAt || null;
+          if (jpName && blobData.serviceSlots) {
+            // サービス別: serviceSlots[date][jpName]
+            slotsBase = {};
+            for (const [d, svcMap] of Object.entries(blobData.serviceSlots)) {
+              slotsBase[d] = svcMap[jpName] || [];
+            }
+          } else {
+            // service 未指定: 全体スロット
+            slotsBase = blobData.slots || null;
+          }
+        }
+      } catch (e) {
+        console.warn('⚠️ slots-data.json 取得失敗（フォールバック）:', e.message);
+      }
+
+      // queue 予約をさらに差し引く
       const queue = await loadQueue(token);
       const booked = buildBookedMap(queue, serviceParam);
 
-      // 今日から2ヶ月分の空き時間を計算
       const slots = {};
       const now = new Date(); now.setHours(0, 0, 0, 0);
       const end = new Date(now.getFullYear(), now.getMonth() + 2, 0);
       for (let d = new Date(now); d <= end; d.setDate(d.getDate() + 1)) {
         const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-        slots[dateStr] = ALL_TIMES.filter(t => (booked[`${dateStr}:${t}`] || 0) < cap);
+        if (slotsBase === null) {
+          // フォールバック: 全枠から queue 分だけ差し引き
+          slots[dateStr] = ALL_TIMES.filter(t => (booked[`${dateStr}:${t}`] || 0) < cap);
+        } else {
+          // SalonBoard 空き枠から queue 分をさらに差し引き
+          slots[dateStr] = (slotsBase[dateStr] || []).filter(
+            t => (booked[`${dateStr}:${t}`] || 0) < cap
+          );
+        }
       }
 
       res.setHeader('Cache-Control', 'no-store');
-      return res.status(200).json({ updatedAt: new Date().toISOString(), slots });
+      return res.status(200).json({ updatedAt: updatedAt || new Date().toISOString(), slots });
     } catch (e) {
       console.error('⚠️ 空き枠計算エラー:', e.message);
       return res.status(200).json({ updatedAt: null, slots: null });

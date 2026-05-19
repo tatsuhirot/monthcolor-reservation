@@ -1138,8 +1138,15 @@ function renderTimeSlots(dateStr) {
   // その日の空き枠。null（フォールバック）は全枠表示。未取得の日は空
   const availForDate = AVAILABLE_SLOTS === null ? null : (AVAILABLE_SLOTS[dateStr] || []);
 
+  // 当日の場合、現在時刻 + 1時間以内の枠はグレーアウト
+  const now = new Date();
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+  const cutoffMin = dateStr === todayStr ? now.getHours() * 60 + now.getMinutes() + 60 : -1;
+
   grid.innerHTML = ALL_TIMES.map(t => {
-    const available = availForDate === null || availForDate.includes(t);
+    const [th, tm] = t.split(':').map(Number);
+    const isPast = cutoffMin >= 0 && th * 60 + tm < cutoffMin;
+    const available = !isPast && (availForDate === null || availForDate.includes(t));
     const selected = state.time === t;
     const cls = ['time-slot', !available ? 'full' : '', selected ? 'selected' : ''].filter(Boolean).join(' ');
     return `<div class="${cls}" onclick="${!available ? '' : `selectTime('${t}')`}">${t}</div>`;
