@@ -1903,10 +1903,10 @@ async function loadSchedule() {
         entryLane.set(r, assigned);
       }
 
-      // 実際の並列予約数と固定容量の大きい方を使用
-      // （容量超過時にMath.minでキャップするとcolGrid未初期化エラーになるため上限なし）
+      // 表示列数 = capacity 固定（最低1）。実レーンがcapacityを超えても表示列数は変えない。
+      // colGrid書き込み時に li をクランプするので colGrid 未初期化エラーは発生しない。
       const capacity = ST_CAPACITY[st] || 1;
-      stLaneCounts[st] = Math.max(laneEndMins.length, capacity);
+      stLaneCounts[st] = capacity;
     }
 
     // colGrid[st][laneIdx][slotIdx] = {span, r}
@@ -1917,7 +1917,8 @@ async function loadSchedule() {
     }
     for (const r of allEntries) {
       const st = getServiceType(r.menu);
-      const li = entryLane.get(r) ?? 0;
+      // capacity 超過分は最後の列（capacity-1）にクランプして表示（クラッシュ防止）
+      const li = Math.min(entryLane.get(r) ?? 0, stLaneCounts[st] - 1);
       const { startIdx, span } = computeSpan(r);
       if (startIdx === -1) continue;
       colGrid[st][li][startIdx] = { span, r };
