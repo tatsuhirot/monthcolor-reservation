@@ -1,23 +1,20 @@
-name: Daily Reservation Sync
+name: HPB Calendar Automation
 
 on:
   schedule:
-    # 毎日 09:00 JST (00:00 UTC) に実行
+    # 予約キュー処理: 10分ごと (JST = UTC+9)
+    - cron: '*/10 * * * *'
+    # SalonBoard 空き枠同期: 毎日 09:00 JST (00:00 UTC)
     - cron: '0 0 * * *'
-    # 追加: 毎日 13:00 JST (04:00 UTC) に2回目同期
+    # SalonBoard 空き枠同期: 毎日 13:00 JST (04:00 UTC)
     - cron: '0 4 * * *'
-  workflow_dispatch:   # 手動実行ボタン（GitHub UI から即時実行可能）
-    inputs:
-      date:
-        description: '取得日 (YYYY-MM-DD)。空欄なら今日'
-        required: false
-        default: ''
+  workflow_dispatch:   # GitHub UI から手動実行可能
 
 jobs:
-  # ── Job 1: coming-soon 同期（認証・サイトが別のため分離） ─────────────
-  sync-comingsoon:
+  # ── Job 1: 予約キュー処理（pending → SalonBoard 登録） ───────────────
+  process-queue:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
 
     steps:
       - name: Checkout
@@ -35,22 +32,24 @@ jobs:
       - name: Install Playwright (Firefox only)
         run: npx playwright install firefox --with-deps
 
-      - name: Sync coming-soon reservations
+      - name: Process reservation queue
         env:
-          COMINGSOON_LOGIN_ID:   ${{ secrets.COMINGSOON_LOGIN_ID }}
-          COMINGSOON_PASSWORD:   ${{ secrets.COMINGSOON_PASSWORD }}
+          SALONBOARD_LOGIN_ID:   ${{ secrets.SALONBOARD_LOGIN_ID }}
+          SALONBOARD_PASSWORD:   ${{ secrets.SALONBOARD_PASSWORD }}
           BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
-        run: |
-          if [ -n "${{ github.event.inputs.date }}" ]; then
-            node sync_comingsoon.js --date "${{ github.event.inputs.date }}"
-          else
-            node sync_comingsoon.js --days 7
-          fi
+          PLAYWRIGHT_HEADLESS:   'true'
+        run: node worker.js
 
-  # ── Job 2: SalonBoard 空き枠同期（2ヶ月分・日ごとアクセス） ──────────
+  # ── Job 2: SalonBoard 空き枠同期（1日2回） ───────────────────────────
   sync-slots:
+    # 00:00 UTC (09:00 JST) か 04:00 UTC (13:00 JST) のスケジュール時のみ実行
+    # 10分ごとのトリガーでは実行しない
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'schedule' &&
+       (startsWith(github.event.schedule, '0 0') || startsWith(github.event.schedule, '0 4')))
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
 
     steps:
       - name: Checkout
