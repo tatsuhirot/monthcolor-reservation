@@ -38,6 +38,12 @@ module.exports = async function handler(req, res) {
         months.add(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`);
       }
 
+      // サービス別の最大施術時間（分）
+      // SalonBoard のスタイリスト稼働ブロック（外部様など）が異常に長い timeRange を
+      // 持つ場合があるため、現実的な上限でキャップして誤カウントを防ぐ
+      const MAX_DURATION_MIN = { hair: 120, white: 60, lash: 75, spa: 90 };
+      const maxDur = MAX_DURATION_MIN[serviceParam] || 120;
+
       // salonboard-{month}.json から予約件数を集計
       // bookedSB["YYYY-MM-DD:HH:MM"] = count（SalonBoard 実予約）
       const bookedSB = {};
@@ -53,8 +59,21 @@ module.exports = async function handler(req, res) {
               // メニュー名からサービスカテゴリを判定
               const cat = normalizeCategory(r.menuName || '');
               if (serviceParam && cat !== serviceParam) continue;
-              // 占有スロットを計算（timeRange 優先）
-              const occupied = occupiedFromTimeRange(r.timeRange, r.time);
+              // 占有スロットを計算（timeRange の終了時間をサービス最大時間でキャップ）
+              const m = (r.timeRange || '').match(/^(\d{1,2}):(\d{2})-(\d{1,2}):(\d{2})$/);
+              let occupied;
+              if (m) {
+                const startMin = Number(m[1]) * 60 + Number(m[2]);
+                const rawEnd   = Number(m[3]) * 60 + Number(m[4]);
+                const cappedEnd = Math.min(rawEnd, startMin + maxDur);
+                occupied = ALL_TIMES.filter(t => {
+                  const [h, min] = t.split(':').map(Number);
+                  const slotStart = h * 60 + min;
+                  return startMin < slotStart + 30 && cappedEnd > slotStart;
+                });
+              } else {
+                occupied = occupiedFromTimeRange(r.timeRange, r.time);
+              }
               for (const slot of occupied) {
                 const key = `${dateStr}:${slot}`;
                 bookedSB[key] = (bookedSB[key] || 0) + 1;
