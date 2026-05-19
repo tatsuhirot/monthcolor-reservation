@@ -23,10 +23,6 @@
       "schedule": "0 10 * * *"
     },
     {
-      "path": "/api/cron?type=cs-sync",
-      "schedule": "0 0 * * *"
-    },
-    {
       "path": "/api/cron?type=morning-report",
       "schedule": "0 23 * * *"
     }

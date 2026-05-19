@@ -358,6 +358,32 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
   cursor: pointer;
 }
 
+/* ── カテゴリタブ（step 1 統合） ── */
+.cat-tab-bar {
+  display: flex;
+  border-bottom: 1px solid #eee;
+  background: #fff;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.cat-tab-bar::-webkit-scrollbar { display: none; }
+.cat-tab-btn {
+  flex-shrink: 0;
+  padding: 10px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #888;
+  border-bottom: 2px solid transparent;
+  transition: color .15s, border-color .15s;
+  white-space: nowrap;
+  background: none;
+  border-top: none;
+  border-left: none;
+  border-right: none;
+  cursor: pointer;
+}
+.cat-tab-btn.active { color: #e60; border-bottom-color: #e60; }
+
 /* ═══════════════════════════════════════════
    NEXT BUTTON
 ═══════════════════════════════════════════ */
@@ -725,13 +751,12 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
     </div>
   </header>
 
-  <!-- ═══ STEP 1: 担当者選択 ═══ -->
+  <!-- ═══ STEP 1: メニュー選択 ═══ -->
   <div class="step active" id="step1">
     <div class="step-bar">
-      <div class="step-bar__title">担当者選択</div>
+      <div class="step-bar__title">メニューを選択</div>
       <div class="step-bar__dots">
         <div class="step-bar__dot active"></div>
-        <div class="step-bar__dot"></div>
         <div class="step-bar__dot"></div>
         <div class="step-bar__dot"></div>
         <div class="step-bar__dot"></div>
@@ -742,44 +767,17 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
       <p class="notice-block__contact">ご質問やお問い合わせは、お電話にてお願いいたします。</p>
       <a class="notice-block__tel" href="tel:0368205623">03-6820-5623</a>
     </div>
-    <div class="section-header">
-      <div class="section-header__icon">
-        <svg viewBox="0 0 24 24"><path d="M9 11.5A3.5 3.5 0 1 0 9 4.5a3.5 3.5 0 0 0 0 7zm0 2c-3.33 0-6 1.67-6 3.5V19h12v-2c0-1.83-2.67-3.5-6-3.5z"/></svg>
-      </div>
-      <div class="section-header__text">指名して予約</div>
-    </div>
-    <div class="card-list" id="staffList">
+    <div class="cat-tab-bar" id="catTabs">
       <!-- JS で生成 -->
-    </div>
-    <div class="next-btn-wrap">
-      <button class="next-btn" id="step1Next" disabled onclick="goStep(2)">次へ（メニュー選択）</button>
-    </div>
-  </div>
-
-  <!-- ═══ STEP 2: メニュー選択 ═══ -->
-  <div class="step" id="step2">
-    <div class="step-bar">
-      <div class="step-bar__title">メニュー選択</div>
-      <div class="step-bar__dots">
-        <div class="step-bar__dot done"></div>
-        <div class="step-bar__dot active"></div>
-        <div class="step-bar__dot"></div>
-        <div class="step-bar__dot"></div>
-        <div class="step-bar__dot"></div>
-      </div>
-    </div>
-    <div class="back-link" onclick="goStep(1)">担当者選択に戻る</div>
-    <div class="section-header">
-      <div class="section-header__icon">
-        <svg viewBox="0 0 24 24"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
-      </div>
-      <div class="section-header__text" id="menuStepTitle">メニューを選択してください</div>
     </div>
     <div class="menu-list" id="menuList"></div>
     <div class="next-btn-wrap">
-      <button class="next-btn" id="step2Next" disabled onclick="goStep(3)">次へ（日時選択）</button>
+      <button class="next-btn" id="step1Next" disabled onclick="goStep(3)">次へ（日時選択）</button>
     </div>
   </div>
+
+  <!-- step2 は step1 に統合済み（スキップ） -->
+  <div class="step" id="step2" style="display:none!important"></div>
 
   <!-- ═══ STEP 3: 予約日時 ═══ -->
   <div class="step" id="step3">
@@ -787,13 +785,12 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
       <div class="step-bar__title">予約日時の選択</div>
       <div class="step-bar__dots">
         <div class="step-bar__dot done"></div>
-        <div class="step-bar__dot done"></div>
         <div class="step-bar__dot active"></div>
         <div class="step-bar__dot"></div>
         <div class="step-bar__dot"></div>
       </div>
     </div>
-    <div class="back-link" onclick="goStep(2)">メニュー選択に戻る</div>
+    <div class="back-link" onclick="goStep(1)">メニュー選択に戻る</div>
     <div class="calendar-wrap">
       <div id="calLoading" class="calendar-loading" style="display:none">空き枠を確認中...</div>
       <div id="calSlotsInfo" class="calendar-slots-info"></div>
@@ -818,7 +815,6 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
     <div class="step-bar">
       <div class="step-bar__title">お客様情報の入力</div>
       <div class="step-bar__dots">
-        <div class="step-bar__dot done"></div>
         <div class="step-bar__dot done"></div>
         <div class="step-bar__dot done"></div>
         <div class="step-bar__dot active"></div>
@@ -876,7 +872,6 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
         <div class="step-bar__dot done"></div>
         <div class="step-bar__dot done"></div>
         <div class="step-bar__dot done"></div>
-        <div class="step-bar__dot done"></div>
         <div class="step-bar__dot active"></div>
       </div>
     </div>
@@ -911,43 +906,11 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
    ローカル起動時: http://localhost:3001
    公開URL（Cloudflare Tunnel等）に変えてください
 ═══════════════════════════════════════════ */
-// Vercel API Route（固定URL）— トンネルもローカルサーバーも不要
-const SERVER_URL = 'https://situations-officials-thinkpad-friend.trycloudflare.com';
+// APIは同一オリジン（Vercel）の相対パスを使用
 
 /* ═══════════════════════════════════════════
    DATA
 ═══════════════════════════════════════════ */
-const STAFF = [
-  {
-    id: 'hair',
-    name: 'ヘアカラー',
-    note: '美容師の指名はできません',
-    desc: '当店の指名はヘアカラーかセルフホワイトニングかまつ毛パーマのメニューの選択です。ヘアカラーをご予約のお客様はこちらを選択してください。',
-    emoji: '💇',
-  },
-  {
-    id: 'white',
-    name: 'セルフホワイトニング',
-    note: '',
-    desc: '当店の指名はヘアカラーかセルフホワイトニングかまつ毛パーマのメニューの選択です。セルフホワイトニングをご予約のお客様はこちらを選択してください。',
-    emoji: '✨',
-  },
-  {
-    id: 'lash',
-    name: 'まつ毛パーマ',
-    note: '',
-    desc: '当店の指名はヘアカラーかセルフホワイトニングかまつ毛パーマのメニューの選択です。まつ毛パーマをご予約のお客様はこちらを選択してください。',
-    emoji: '👁',
-  },
-  {
-    id: 'spa',
-    name: 'ドライヘッドスパ',
-    note: '',
-    desc: '当店の指名はヘアカラーかセルフホワイトニングかまつ毛パーマのメニューの選択です。ドライヘッドスパをご予約のお客様はこちらを選択してください。',
-    emoji: '🧖',
-  },
-];
-
 const MENUS = {
   hair: [
     { id: 'h1', name: 'リタッチカラー',       price: '¥4,400〜', time: '60〜70分', desc: 'シャンプー・コンディショナー込み。頭皮から3cmまで。' },
@@ -974,10 +937,11 @@ const MENUS = {
    STATE
 ═══════════════════════════════════════════ */
 const state = {
-  staff: null,
-  menu:  null,
-  date:  null,
-  time:  null,
+  staff:          null,   // サービスカテゴリ (hair/white/lash/spa)
+  menu:           null,   // メニューID
+  activeCategory: 'hair', // タブで選択中のカテゴリ
+  date:           null,
+  time:           null,
   calYear:  new Date().getFullYear(),
   calMonth: new Date().getMonth(),
 };
@@ -986,61 +950,44 @@ const state = {
    STEP NAVIGATION
 ═══════════════════════════════════════════ */
 function goStep(n) {
-  document.querySelectorAll('.step').forEach((el, i) => {
-    el.classList.toggle('active', i + 1 === n);
-  });
+  // IDベースで切り替え（step2はスキップ）
+  for (let i = 1; i <= 6; i++) {
+    const el = document.getElementById('step' + i);
+    if (el) el.classList.toggle('active', i === n);
+  }
   window.scrollTo({ top: 0, behavior: 'smooth' });
-  if (n === 2) renderMenus();
+  if (n === 1) renderMenus();
   if (n === 3) {
     const grid = document.getElementById('calGrid');
     if (grid) grid.innerHTML = '';
-    slotsLoaded = false; // サービス変更に備えて毎回リロード
+    slotsLoaded = false;
     loadSlots().then(() => renderCalendar());
   }
   if (n === 5) renderConfirm();
 }
 
 /* ═══════════════════════════════════════════
-   STEP 1: STAFF
+   STEP 1: メニュー選択（カテゴリタブ統合）
 ═══════════════════════════════════════════ */
-function renderStaff() {
-  const list = document.getElementById('staffList');
-  list.innerHTML = STAFF.map(s => `
-    <div class="card-item" id="staff_${s.id}">
-      <div class="card-item__img">
-        <div class="card-item__img-placeholder">${s.emoji}</div>
-      </div>
-      <div class="card-item__body">
-        <div class="card-item__name">${s.name}</div>
-        ${s.note ? `<div class="card-item__note">${s.note}</div>` : ''}
-        <div class="card-item__desc">${s.desc}</div>
-        ${state.staff === s.id ? `<div class="selected-badge">選択中</div>` : ''}
-      </div>
-      <div class="card-item__action">
-        <button class="select-btn ${state.staff === s.id ? 'selected' : ''}"
-          onclick="selectStaff('${s.id}')">
-          <span class="select-btn__label">${state.staff === s.id ? '選択済' : '選択'}</span>
-          <span class="select-btn__arrow">${state.staff === s.id ? '×' : '▶'}</span>
-        </button>
-      </div>
-    </div>
-  `).join('');
-}
+const CATS = [
+  { id: 'hair',  name: 'ヘアカラー',      emoji: '💇' },
+  { id: 'white', name: 'ホワイトニング',  emoji: '✨' },
+  { id: 'lash',  name: 'まつ毛パーマ',    emoji: '👁' },
+  { id: 'spa',   name: 'ドライヘッドスパ', emoji: '🧖' },
+];
 
-function selectStaff(id) {
-  state.staff = (state.staff === id) ? null : id;
-  state.menu  = null; // リセット
-  renderStaff();
-  document.getElementById('step1Next').disabled = !state.staff;
-}
-
-/* ═══════════════════════════════════════════
-   STEP 2: MENU
-═══════════════════════════════════════════ */
 function renderMenus() {
-  const staffObj = STAFF.find(s => s.id === state.staff);
-  if (staffObj) document.getElementById('menuStepTitle').textContent = staffObj.name + ' のメニューを選択';
-  const menus = MENUS[state.staff] || [];
+  // タブ描画
+  const tabs = document.getElementById('catTabs');
+  if (tabs) {
+    tabs.innerHTML = CATS.map(c => `
+      <button class="cat-tab-btn ${state.activeCategory === c.id ? 'active' : ''}"
+        onclick="switchCategory('${c.id}')">${c.emoji} ${c.name}</button>
+    `).join('');
+  }
+
+  // 選択中カテゴリのメニューを描画
+  const menus = MENUS[state.activeCategory] || [];
   const list = document.getElementById('menuList');
   list.innerHTML = menus.map(m => `
     <div class="menu-item" id="menu_${m.id}">
@@ -1064,12 +1011,23 @@ function renderMenus() {
   `).join('');
 }
 
+function switchCategory(catId) {
+  state.activeCategory = catId;
+  renderMenus();
+}
+
 function selectMenu(id) {
-  state.menu = (state.menu === id) ? null : id;
+  if (state.menu === id) {
+    state.menu  = null;
+    state.staff = null;
+  } else {
+    state.menu  = id;
+    state.staff = state.activeCategory; // カテゴリ = staffCategory
+  }
   state.date = null;
   state.time = null;
   renderMenus();
-  document.getElementById('step2Next').disabled = !state.menu;
+  document.getElementById('step1Next').disabled = !state.menu;
 }
 
 /* ═══════════════════════════════════════════
@@ -1238,7 +1196,7 @@ document.addEventListener('DOMContentLoaded', () => {
    STEP 5: CONFIRM
 ═══════════════════════════════════════════ */
 function renderConfirm() {
-  const staffObj = STAFF.find(s => s.id === state.staff);
+  const staffObj = CATS.find(s => s.id === state.staff);
   const allMenus = Object.values(MENUS).flat();
   const menuObj  = allMenus.find(m => m.id === state.menu);
   const kanaLast  = document.getElementById('kanaLast').value;
@@ -1250,7 +1208,7 @@ function renderConfirm() {
   const memo  = document.getElementById('memo').value;
 
   const rows = [
-    ['担当者',   staffObj?.name || ''],
+    ['サービス', staffObj?.name || ''],
     ['メニュー', menuObj?.name  || ''],
     ['料金',     menuObj?.price || ''],
     ['施術時間', menuObj?.time  || ''],
@@ -1271,7 +1229,7 @@ function renderConfirm() {
    STEP 6: COMPLETE
 ═══════════════════════════════════════════ */
 async function submitReservation() {
-  const staffObj = STAFF.find(s => s.id === state.staff);
+  const staffObj = CATS.find(s => s.id === state.staff);
   const allMenus = Object.values(MENUS).flat();
   const menuObj  = allMenus.find(m => m.id === state.menu);
 
@@ -1316,7 +1274,7 @@ async function submitReservation() {
     // 完了画面へ
     document.getElementById('completeBox').innerHTML = `
       <strong>ご予約内容</strong><br>
-      担当：${staffObj?.name}<br>
+      サービス：${staffObj?.name}<br>
       メニュー：${menuObj?.name}（${menuObj?.price}）<br>
       予約日時：${state.date} ${state.time}<br>
       お名前：${name} 様
@@ -1334,7 +1292,7 @@ async function submitReservation() {
 }
 
 function resetAll() {
-  Object.assign(state, { staff: null, menu: null, date: null, time: null });
+  Object.assign(state, { staff: null, menu: null, activeCategory: 'hair', date: null, time: null });
   document.getElementById('kanaLast').value = '';
   document.getElementById('kanaFirst').value = '';
   document.getElementById('kanjiLast').value = '';
@@ -1344,13 +1302,12 @@ function resetAll() {
   document.getElementById('memo').value = '';
   document.getElementById('policyAgree').checked = false;
   goStep(1);
-  renderStaff();
 }
 
 /* ═══════════════════════════════════════════
    INIT
 ═══════════════════════════════════════════ */
-renderStaff();
+renderMenus();
 </script>
 </body>
 </html>

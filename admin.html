@@ -1831,9 +1831,9 @@ async function loadSchedule() {
   }
 
   try {
-    // comingsoon（SalonBoardスクレイピング）とqueue（このシステムの予約）を両方取得
-    const [csRes, qRes] = await Promise.all([
-      fetch(`/api/comingsoon?date=${dateStr}`, {
+    // SalonBoardスクレイピング(salonboard-{month}.json)とqueue（このシステム）を両方取得
+    const [sbRes, qRes] = await Promise.all([
+      fetch(`/api/salonboard?date=${dateStr}`, {
         headers: { Authorization: `Bearer ${password}` },
       }).then(r => r.json()).catch(() => ({ reservations: [] })),
       fetch('/api/reservations', {
@@ -1842,8 +1842,15 @@ async function loadSchedule() {
     ]);
 
     const allEntries = [
-      // SalonBoardスクレイピングデータ
-      ...(csRes.reservations || []).map(r => ({ ...r, _src: 'cs' })),
+      // SalonBoardスクレイピングデータ（HPB経由 + 電話/直接）
+      ...(sbRes.reservations || []).map(r => ({
+        _src: 'sb',
+        _sbSource: r.source,  // 'hpb' | 'direct'
+        time: r.time,
+        timeRange: r.timeRange,
+        name: r.customerName || '—',
+        menu: r.menuName || '',
+      })),
       // このシステムの予約（当日分・キャンセル除く）
       ...(qRes.reservations || [])
         .filter(r => r.data?.date === dateStr && r.status !== 'cancelled')
@@ -2011,15 +2018,18 @@ async function loadSchedule() {
             coveredUntil[st][li] = i + span;
             let block;
             if (r._src === 'queue') {
+              // このシステム経由の予約
               const range = r.timeRange ? `<span class="sched-range">${r.timeRange}</span>` : '';
               const cls = `sched-booked-queue${r._status === 'pending' ? ' pending' : r._status === 'processing' ? ' processing' : ''}`;
               block = `<div class="${cls}" title="${r.menu||''}">${r.name||'—'}${range}</div>`;
-            } else if (r._src === 'cs') {
-              const safeName = (r.name || '—').replace(/'/g, "\\'");
+            } else if (r._src === 'sb' && r._sbSource === 'direct') {
+              // SalonBoard 直接/電話予約
               const range = r.timeRange ? `<span class="sched-range">${r.timeRange}</span>` : '';
-              block = `<div class="sched-booked-cs" onclick="openCsDetailByRef('${safeName}','${dateStr}')" title="${r.menu||''}">${r.name||'—'}${range}</div>`;
+              block = `<div class="sched-booked-direct" title="${r.menu||'直接予約'}">${r.name||'—'}${range}</div>`;
             } else {
-              block = `<div class="sched-booked-sb" title="${r.menu||''}">${r.name||'—'}</div>`;
+              // SalonBoard HPB経由予約
+              const range = r.timeRange ? `<span class="sched-range">${r.timeRange}</span>` : '';
+              block = `<div class="sched-booked-sb" title="${r.menu||''}">${r.name||'—'}${range}</div>`;
             }
             tds += `<td class="sched-cell" rowspan="${span}">${block}</td>`;
           } else {
