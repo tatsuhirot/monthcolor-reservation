@@ -1803,22 +1803,12 @@ async function loadSchedule() {
   label.textContent = `${schedViewDate.getMonth()+1}/${schedViewDate.getDate()}(${dow})`;
 
   try {
-    const csUrl = `/api/comingsoon?date=${dateStr}`;
-    const [csRes, sbRes] = await Promise.all([
-      fetch(csUrl, { headers: { Authorization: `Bearer ${password}` } })
-        .then(r => r.json()).catch(() => ({ reservations: [] })),
-      fetch(`/api/salonboard?date=${dateStr}`, { headers: { Authorization: `Bearer ${password}` } })
-        .then(r => r.json()).catch(() => ({ reservations: [] })),
-    ]);
+    // comingsoonのみ使用（salonboard-{month}.jsonは古く名前・IDなしのスロットマーカーのため除外）
+    const csRes = await fetch(`/api/comingsoon?date=${dateStr}`, {
+      headers: { Authorization: `Bearer ${password}` },
+    }).then(r => r.json()).catch(() => ({ reservations: [] }));
 
-    const allEntries = [
-      ...(csRes.reservations || []).map(r => ({ ...r, _src: 'cs' })),
-      ...(sbRes.reservations || []).map(r => ({
-        ...r, _src: 'sb',
-        name: r.customerName || r.name,
-        menu: r.menuName || r.menu,
-      })),
-    ];
+    const allEntries = (csRes.reservations || []).map(r => ({ ...r, _src: 'cs' }));
 
     // 9:00〜20:00 10分刻み + 実データの開始時刻
     const baseSlots = [];
