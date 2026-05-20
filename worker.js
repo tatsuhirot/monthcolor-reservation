@@ -200,11 +200,9 @@ async function registerInSalonBoard({ date, time, name, menuName }) {
     );
     await page.waitForTimeout(1500);
 
-    const stylistId = await resolveStaffId(page);
-    const timeKey   = time.replace(':', '');
-    const slotPattern = `empty_time_sid_fix_${dateKey}_${timeKey}_${stylistId}`;
-
-    const slot = await page.$(`[id^="${slotPattern}"]`);
+    const timeKey = time.replace(':', '');
+    // スタイリストIDを限定せず、その時間帯に空いている誰でも選ぶ（6枠対応）
+    const slot = await page.$(`[id^="empty_time_sid_fix_${dateKey}_${timeKey}_"]`);
     if (!slot) throw new Error(`空き枠が見つかりません（${date} ${time}）`);
 
     await slot.click();
