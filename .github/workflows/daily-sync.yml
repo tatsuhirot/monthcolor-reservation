@@ -2,8 +2,6 @@ name: HPB Calendar Automation
 
 on:
   schedule:
-    # 予約キュー処理: 10分ごと (JST = UTC+9)
-    - cron: '*/10 * * * *'
     # SalonBoard 空き枠同期: 毎日 09:00 JST (00:00 UTC)
     - cron: '0 0 * * *'
     # SalonBoard 空き枠同期: 毎日 13:00 JST (04:00 UTC)
