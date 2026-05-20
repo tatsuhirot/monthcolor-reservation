@@ -29,55 +29,73 @@ module.exports = async function handler(req, res) {
       const cap = CAPACITY[serviceParam] || 1;
       const token = process.env.BLOB_READ_WRITE_TOKEN;
 
-      // serviceParam（英語）→ serviceSlots キー（日本語）
-      const SVC_KEY = { hair: 'カラー', white: 'ホワイトニング', lash: 'まつ毛パーマ', spa: 'ドライヘッドスパ' };
-      const svcKey = SVC_KEY[serviceParam];
-
-      // slots-data.json（SalonBoard直接スクレイピング）をベースに使う
-      // → SalonBoardが「空き」と判断した時間帯のみが含まれるため最も正確
-      let slotsData = null;
-      let updatedAt = null;
-      try {
-        const meta = await head('slots-data.json', { token });
-        if (meta) {
-          slotsData = await fetch(meta.url).then(r => r.json());
-          updatedAt = slotsData?.updatedAt || null;
-        }
-      } catch (e) {
-        console.warn('⚠️ slots-data.json 取得失敗:', e.message);
-      }
-
-      // queue 予約を差し引く（このシステム経由の未処理予約）
-      const queue = await loadQueue(token);
-      const bookedQueue = buildBookedMap(queue, serviceParam);
-
       const now = new Date(); now.setHours(0, 0, 0, 0);
       const end = new Date(now.getFullYear(), now.getMonth() + 2, 0);
+
+      // 対象月を列挙（今月 + 来月）
+      const months = new Set();
+      for (let d = new Date(now); d <= end; d.setDate(d.getDate() + 1)) {
+        months.add(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`);
+      }
+
+      // サービス別の最大施術時間（分）
+      // SalonBoard のスタイリスト稼働ブロック（外部様など）が異常に長い timeRange を
+      // 持つ場合があるため、現実的な上限でキャップして誤カウントを防ぐ
+      const MAX_DURATION_MIN = { hair: 120, white: 60, lash: 75, spa: 90 };
+      const maxDur = MAX_DURATION_MIN[serviceParam] || 120;
+
+      // salonboard-{month}.json から予約件数を集計
+      // bookedSB["YYYY-MM-DD:HH:MM"] = count（SalonBoard 実予約）
+      const bookedSB = {};
+      let updatedAt = null;
+      for (const month of months) {
+        try {
+          const meta = await head(`salonboard-${month}.json`, { token });
+          if (!meta) continue;
+          const data = await fetch(meta.url).then(r => r.json());
+          if (!updatedAt) updatedAt = data.updatedAt;
+          for (const [dateStr, rsvs] of Object.entries(data.reservations || {})) {
+            for (const r of rsvs) {
+              // メニュー名からサービスカテゴリを判定
+              const cat = normalizeCategory(r.menuName || '');
+              if (serviceParam && cat !== serviceParam) continue;
+              // 占有スロットを計算（timeRange の終了時間をサービス最大時間でキャップ）
+              const m = (r.timeRange || '').match(/^(\d{1,2}):(\d{2})-(\d{1,2}):(\d{2})$/);
+              let occupied;
+              if (m) {
+                const startMin = Number(m[1]) * 60 + Number(m[2]);
+                const rawEnd   = Number(m[3]) * 60 + Number(m[4]);
+                const cappedEnd = Math.min(rawEnd, startMin + maxDur);
+                occupied = ALL_TIMES.filter(t => {
+                  const [h, min] = t.split(':').map(Number);
+                  const slotStart = h * 60 + min;
+                  return startMin < slotStart + 30 && cappedEnd > slotStart;
+                });
+              } else {
+                occupied = occupiedFromTimeRange(r.timeRange, r.time);
+              }
+              for (const slot of occupied) {
+                const key = `${dateStr}:${slot}`;
+                bookedSB[key] = (bookedSB[key] || 0) + 1;
+              }
+            }
+          }
+        } catch (e) {
+          console.warn(`⚠️ salonboard-${month}.json 取得失敗:`, e.message);
+        }
+      }
+
+      // queue 予約もさらに差し引く
+      const queue = await loadQueue(token);
+      const bookedQueue = buildBookedMap(queue, serviceParam);
 
       const slots = {};
       for (let d = new Date(now); d <= end; d.setDate(d.getDate() + 1)) {
         const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-
-        // SalonBoard直接データがある場合: serviceSlots から対象サービスの空き時間を取得
-        // ない場合（未同期）: フォールバックとして全枠を表示（nullを返すとreservation.htmlが全枠表示）
-        let baseTimes;
-        if (slotsData?.serviceSlots?.[dateStr] && svcKey) {
-          baseTimes = slotsData.serviceSlots[dateStr][svcKey] || [];
-        } else if (slotsData?.slots?.[dateStr]) {
-          baseTimes = slotsData.slots[dateStr];
-        } else {
-          baseTimes = null; // 未同期 → フォールバック
-        }
-
-        if (baseTimes === null) {
-          slots[dateStr] = null; // reservation.html が全枠表示
-        } else {
-          // queue で埋まった枠を除外（cap 件以上の予約があれば満席）
-          slots[dateStr] = baseTimes.filter(t => {
-            const key = `${dateStr}:${t}`;
-            return (bookedQueue[key] || 0) < cap;
-          });
-        }
+        slots[dateStr] = ALL_TIMES.filter(t => {
+          const key = `${dateStr}:${t}`;
+          return (bookedSB[key] || 0) + (bookedQueue[key] || 0) < cap;
+        });
       }
 
       res.setHeader('Cache-Control', 'no-store');
