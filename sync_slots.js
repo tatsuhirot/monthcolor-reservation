@@ -232,33 +232,44 @@ async function syncSlots() {
       if (!loginBtn) throw new Error('ログインボタンが見つかりません');
       console.log('🖱  ログインボタンをクリック');
 
-      // SP版はAJAX認証のためURLが変化しない → クリック後にトップページへ遷移してセッションを安定させる
+      // SP版はAJAX認証 → クリック後にセッションCookieが設定されるまで待つ
       await loginBtn.click();
-      await page.waitForTimeout(3000); // AJAX完了を待つ
+
+      // ログイン成功を確認: Cookie に JSESSIONID が設定されるまで最大30秒待つ
+      let loginOk = false;
+      for (let i = 0; i < 15; i++) {
+        await page.waitForTimeout(2000);
+        const cookies = await context.cookies('https://salonboard.com');
+        if (cookies.some(c => c.name === 'JSESSIONID')) { loginOk = true; break; }
+      }
+      if (!loginOk) {
+        await page.screenshot({ path: path.join(tmpDir, 'salonboard-login-fail.png'), fullPage: true }).catch(() => null);
+        throw new Error('SalonBoard login failed: JSESSIONID が取得できませんでした');
+      }
+      console.log('🍪 セッションCookie確認済み');
 
       // 一旦 PC版トップページへ移動（SP→スケジュール直行はクラッシュする）
-      await page.goto('https://salonboard.com/CLP/bt/top/', {
-        waitUntil: 'domcontentloaded', timeout: 30_000,
-      });
-      await page.waitForTimeout(1500);
-      const topUrl = page.url();
-
-      if (topUrl.includes('/login')) {
-        // ログインページにリダイレクトされた → 認証失敗
-        await page.screenshot({ path: path.join(tmpDir, 'salonboard-login-fail.png'), fullPage: true }).catch(() => null);
-        if (fs.existsSync(statePath)) {
-          fs.rmSync(statePath, { force: true });
-          console.warn('⚠️  セッションファイルを削除しました');
-        }
-        throw new Error(`SalonBoard login failed (redirected to login): ${topUrl}`);
+      try {
+        await page.goto('https://salonboard.com/CLP/bt/top/', {
+          waitUntil: 'domcontentloaded', timeout: 60_000,
+        });
+      } catch (e) {
+        console.warn('⚠️  トップページ遷移タイムアウト（続行）');
       }
+      await page.waitForTimeout(1500);
 
       // スケジュールページへ移動
       await page.goto('https://salonboard.com/CLP/bt/schedule/salonSchedule/', {
-        waitUntil: 'domcontentloaded', timeout: 30_000,
+        waitUntil: 'domcontentloaded', timeout: 120_000,
       });
       await page.waitForTimeout(1000);
       const afterUrl = page.url();
+
+      if (afterUrl.includes('/login')) {
+        await page.screenshot({ path: path.join(tmpDir, 'salonboard-login-fail.png'), fullPage: true }).catch(() => null);
+        if (fs.existsSync(statePath)) { fs.rmSync(statePath, { force: true }); }
+        throw new Error(`SalonBoard login failed (redirected to login): ${afterUrl}`);
+      }
 
       await context.storageState({ path: statePath });
       console.log('✅ SalonBoard ログイン完了 →', afterUrl);
@@ -287,23 +298,25 @@ async function syncSlots() {
       const monthKey  = dateLabel.slice(0, 7);
       const label     = `${current.getFullYear()}/${current.getMonth()+1}/${current.getDate()}`;
 
-      // ページクラッシュ時は1回リトライ
+      // ページクラッシュ・タイムアウト時は1回リトライ、それでも失敗なら空データでスキップ
       let html;
       for (let attempt = 0; attempt < 2; attempt++) {
         try {
           await page.goto(
             `https://salonboard.com/CLP/bt/schedule/salonSchedule/?date=${dateKey}`,
-            { waitUntil: 'domcontentloaded', timeout: 30_000 }
+            { waitUntil: 'domcontentloaded', timeout: 90_000 }
           );
           await page.waitForTimeout(1500);
           html = await page.content();
           break;
         } catch (e) {
           if (attempt === 0 && (e.message.includes('crashed') || e.message.includes('closed') || e.name === 'TimeoutError')) {
-            console.warn(`⚠️  ${label}: ページクラッシュ、リトライ中...`);
-            await page.waitForTimeout(2000);
+            console.warn(`⚠️  ${label}: タイムアウト、リトライ中...`);
+            await page.waitForTimeout(3000);
           } else {
-            throw e;
+            console.warn(`⚠️  ${label}: 取得失敗（スキップ）: ${e.message.slice(0, 60)}`);
+            html = '<html></html>'; // 空データで続行
+            break;
           }
         }
       }
