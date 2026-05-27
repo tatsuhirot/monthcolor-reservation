@@ -2,7 +2,7 @@
  * api/_shared.js — 予約ロジック共通定数・関数
  */
 
-const { head } = require('@vercel/blob');
+const storage = require('../lib/storage');
 
 const QUEUE_KEY = 'reservations-queue.json';
 
@@ -68,13 +68,11 @@ function buildBookedMap(queue, serviceParam) {
   return booked;
 }
 
-// Blob から queue を読み込む
-async function loadQueue(token) {
+// ストレージから queue を読み込む
+async function loadQueue() {
   try {
-    const blob = await head(QUEUE_KEY, { token });
-    if (!blob) return [];
-    const res = await fetch(blob.url);
-    return await res.json();
+    const data = await storage.get(QUEUE_KEY);
+    return data || [];
   } catch {
     return [];
   }

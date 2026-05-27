@@ -4,7 +4,7 @@
  * スタッフ用: Vercel Blob の予約キューを返す（パスワード認証付き）
  */
 
-const { head } = require('@vercel/blob');
+const storage = require('../lib/storage');
 
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -40,12 +40,7 @@ function checkAuth(req) {
 
 async function loadQueue() {
   try {
-    const blob = await head('reservations-queue.json', {
-      token: process.env.BLOB_READ_WRITE_TOKEN,
-    });
-    if (!blob) return [];
-    const res = await fetch(blob.url);
-    return await res.json();
+    return (await storage.get('reservations-queue.json')) || [];
   } catch {
     return [];
   }

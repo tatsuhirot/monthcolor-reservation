@@ -7,15 +7,13 @@
  */
 
 require('dotenv').config();
-const { head } = require('@vercel/blob');
+const storage = require('../lib/storage');
 
 const SALES_KEY = 'sales-log.json';
 
 async function loadBlob(key) {
   try {
-    const meta = await head(key, { token: process.env.BLOB_READ_WRITE_TOKEN });
-    if (!meta) return [];
-    return await fetch(meta.url).then(r => r.json());
+    return (await storage.get(key)) || [];
   } catch {
     return [];
   }

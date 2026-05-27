@@ -6,7 +6,7 @@
  * GET /api/comingsoon?date=YYYY-MM-DD → 指定日の予約（comingsoon-date と同等）
  */
 
-const { head } = require('@vercel/blob');
+const storage = require('../lib/storage');
 
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -26,11 +26,8 @@ module.exports = async function handler(req, res) {
   try {
     // ?date 省略 → comingsoon-today.json（今日キャッシュ）を使用
     if (!date) {
-      const blob = await head('comingsoon-today.json', {
-        token: process.env.BLOB_READ_WRITE_TOKEN,
-      });
-      if (!blob) return res.status(200).json({ updatedAt: null, date: null, reservations: [] });
-      const data = await fetch(blob.url).then(r => r.json());
+      const data = await storage.get('comingsoon-today.json');
+      if (!data) return res.status(200).json({ updatedAt: null, date: null, reservations: [] });
       res.setHeader('Cache-Control', 'no-store');
       return res.status(200).json(data);
     }
@@ -39,16 +36,13 @@ module.exports = async function handler(req, res) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
       return res.status(400).json({ error: '日付フォーマットが不正です (YYYY-MM-DD)' });
     }
-    const blob = await head(`comingsoon-${date}.json`, {
-      token: process.env.BLOB_READ_WRITE_TOKEN,
-    });
-    if (!blob) {
+    const data = await storage.get(`comingsoon-${date}.json`);
+    if (!data) {
       return res.status(200).json({
         updatedAt: null, date, reservations: [],
         message: 'このデータはまだ同期されていません',
       });
     }
-    const data = await fetch(blob.url).then(r => r.json());
     res.setHeader('Cache-Control', 'no-store');
     return res.status(200).json(data);
   } catch (e) {

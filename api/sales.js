@@ -7,7 +7,7 @@
  */
 
 require('dotenv').config();
-const { head } = require('@vercel/blob');
+const storage = require('../lib/storage');
 
 const SALES_KEY   = 'sales-log.json';
 const VISITS_KEY  = 'visits-log.json';
@@ -33,8 +33,7 @@ module.exports = async function handler(req, res) {
     // sales-log 取得
     let sales = [];
     try {
-      const meta = await head(SALES_KEY, { token: process.env.BLOB_READ_WRITE_TOKEN });
-      if (meta) sales = await fetch(meta.url).then(r => r.json());
+      sales = (await storage.get(SALES_KEY)) || [];
     } catch { /* Blob未存在は空で処理 */ }
 
     // 期間フィルタ
@@ -49,12 +48,9 @@ module.exports = async function handler(req, res) {
     // visits-log（当日チェックイン済み = 未会計）取得
     let checkedIn = [];
     try {
-      const vmeta = await head(VISITS_KEY, { token: process.env.BLOB_READ_WRITE_TOKEN });
-      if (vmeta) {
-        const visits = await fetch(vmeta.url).then(r => r.json());
-        const today  = new Date().toISOString().slice(0, 10);
-        checkedIn = visits.filter(v => v.status === 'checkedin' && v.date === today);
-      }
+      const visits = (await storage.get(VISITS_KEY)) || [];
+      const today  = new Date().toISOString().slice(0, 10);
+      checkedIn = visits.filter(v => v.status === 'checkedin' && v.date === today);
     } catch { /* skip */ }
 
     // ── 集計 ──────────────────────────────────────────────────

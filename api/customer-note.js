@@ -11,7 +11,7 @@
  */
 
 require('dotenv').config();
-const { put, head } = require('@vercel/blob');
+const storage = require('../lib/storage');
 
 const NOTES_KEY = 'customer-notes.json';
 
@@ -22,20 +22,14 @@ function noteKey(phone, name) {
 
 async function loadNotes() {
   try {
-    const meta = await head(NOTES_KEY, { token: process.env.BLOB_READ_WRITE_TOKEN });
-    if (!meta) return {};
-    return await fetch(meta.url).then(r => r.json());
+    return (await storage.get(NOTES_KEY)) || {};
   } catch {
     return {};
   }
 }
 
 async function saveNotes(notes) {
-  await put(NOTES_KEY, JSON.stringify(notes, null, 2), {
-    access: 'public',
-    addRandomSuffix: false,
-    token: process.env.BLOB_READ_WRITE_TOKEN,
-  });
+  await storage.put(NOTES_KEY, JSON.stringify(notes, null, 2));
 }
 
 module.exports = async function handler(req, res) {

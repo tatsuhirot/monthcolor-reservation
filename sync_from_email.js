@@ -14,7 +14,7 @@
  */
 
 require('dotenv').config();
-const { put, head } = require('@vercel/blob');
+const storage = require('./lib/storage');
 const { v4: uuidv4 } = require('uuid');
 const fs   = require('fs');
 const path = require('path');
@@ -143,10 +143,7 @@ function parseChangeEmail(text) {
 async function loadQueue() {
   if (isDryRun) return [];
   try {
-    const blob = await head(QUEUE_KEY, { token: process.env.BLOB_READ_WRITE_TOKEN });
-    if (!blob) return [];
-    const res = await fetch(blob.url);
-    return await res.json();
+    return (await storage.get(QUEUE_KEY)) || [];
   } catch {
     return [];
   }
@@ -158,13 +155,7 @@ async function saveQueue(queue) {
     console.log(JSON.stringify(queue, null, 2));
     return;
   }
-  await put(QUEUE_KEY, JSON.stringify(queue, null, 2), {
-    access:          'public',
-    token:           process.env.BLOB_READ_WRITE_TOKEN,
-    allowOverwrite:  true,
-    contentType:     'application/json',
-    addRandomSuffix: false,
-  });
+  await storage.put(QUEUE_KEY, JSON.stringify(queue, null, 2));
 }
 
 // 予約番号 or 日時+名前 でキューを検索

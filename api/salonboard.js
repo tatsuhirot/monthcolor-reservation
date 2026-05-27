@@ -7,7 +7,7 @@
  * GET /api/salonboard?today=1             → 今日のSB予約（today-reservations と同等）
  */
 
-const { head } = require('@vercel/blob');
+const storage = require('../lib/storage');
 const { CAPACITY, ALL_TIMES, buildBookedMap, loadQueue, normalizeCategory, occupiedFromTimeRange } = require('./_shared');
 
 module.exports = async function handler(req, res) {
@@ -27,8 +27,6 @@ module.exports = async function handler(req, res) {
     try {
       const serviceParam = req.query.service;
       const cap = CAPACITY[serviceParam] || 1;
-      const token = process.env.BLOB_READ_WRITE_TOKEN;
-
       const now = new Date(); now.setHours(0, 0, 0, 0);
       const end = new Date(now.getFullYear(), now.getMonth() + 2, 0);
 
@@ -50,9 +48,8 @@ module.exports = async function handler(req, res) {
       let updatedAt = null;
       for (const month of months) {
         try {
-          const meta = await head(`salonboard-${month}.json`, { token });
-          if (!meta) continue;
-          const data = await fetch(meta.url).then(r => r.json());
+          const data = await storage.get(`salonboard-${month}.json`);
+          if (!data) continue;
           if (!updatedAt) updatedAt = data.updatedAt;
           for (const [dateStr, rsvs] of Object.entries(data.reservations || {})) {
             for (const r of rsvs) {
@@ -86,7 +83,7 @@ module.exports = async function handler(req, res) {
       }
 
       // queue 予約もさらに差し引く
-      const queue = await loadQueue(token);
+      const queue = await loadQueue();
       const bookedQueue = buildBookedMap(queue, serviceParam);
 
       const slots = {};
@@ -115,11 +112,8 @@ module.exports = async function handler(req, res) {
   // ── 今日のSB予約（?today=1）─────────────────────────────────
   if (today) {
     try {
-      const blob = await head('today-reservations.json', {
-        token: process.env.BLOB_READ_WRITE_TOKEN,
-      });
-      if (!blob) return res.status(200).json({ updatedAt: null, date: null, reservations: [] });
-      const data = await fetch(blob.url).then(r => r.json());
+      const data = await storage.get('today-reservations.json');
+      if (!data) return res.status(200).json({ updatedAt: null, date: null, reservations: [] });
       res.setHeader('Cache-Control', 'no-store');
       return res.status(200).json(data);
     } catch (e) {
@@ -133,16 +127,13 @@ module.exports = async function handler(req, res) {
   }
   const month = date.slice(0, 7);
   try {
-    const meta = await head(`salonboard-${month}.json`, {
-      token: process.env.BLOB_READ_WRITE_TOKEN,
-    });
-    if (!meta) {
+    const data = await storage.get(`salonboard-${month}.json`);
+    if (!data) {
       return res.status(200).json({
         date, reservations: [],
         message: 'データ未取得。GitHub Actions（sync_slots.js）の実行が必要です。',
       });
     }
-    const data = await fetch(meta.url).then(r => r.json());
     const reservations = (data.reservations || {})[date] || [];
     res.setHeader('Cache-Control', 'no-store');
     return res.status(200).json({ date, updatedAt: data.updatedAt, reservations });

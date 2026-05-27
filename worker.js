@@ -14,7 +14,7 @@
  */
 
 require('dotenv').config();
-const { put, head } = require('@vercel/blob');
+const storage = require('./lib/storage');
 const { firefox } = require('playwright');
 const { spawnSync } = require('child_process');
 const fs   = require('fs');
@@ -349,14 +349,10 @@ async function resolveStaffId(page) {
   return 'T000779306';
 }
 
-// ── Blob キュー操作 ───────────────────────────────────────────────
+// ── ストレージ キュー操作 ─────────────────────────────────────────
 async function loadQueue() {
   try {
-    const token = process.env.BLOB_READ_WRITE_TOKEN;
-    const blob = await head(QUEUE_KEY, { token });
-    if (!blob) return [];
-    const res = await fetch(blob.url);
-    return await res.json();
+    return (await storage.get(QUEUE_KEY)) || [];
   } catch {
     return [];
   }
@@ -372,13 +368,7 @@ async function updateStatus(queue, id, status, error = null) {
 }
 
 async function saveQueue(queue) {
-  await put(QUEUE_KEY, JSON.stringify(queue, null, 2), {
-    access:          'public',
-    token:           process.env.BLOB_READ_WRITE_TOKEN,
-    allowOverwrite:  true,
-    contentType:     'application/json',
-    addRandomSuffix: false,
-  });
+  await storage.put(QUEUE_KEY, JSON.stringify(queue, null, 2));
 }
 
 // ── ユーティリティ ─────────────────────────────────────────────────

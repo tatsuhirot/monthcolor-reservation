@@ -11,7 +11,7 @@
 
 require('dotenv').config();
 const { firefox } = require('playwright');
-const { put, head } = require('@vercel/blob');
+const storage = require('./lib/storage');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
@@ -375,17 +375,14 @@ async function syncSlots() {
     const updatedAt = new Date().toISOString();
     for (const [month, data] of Object.entries(reservationsByMonth)) {
       const payload = JSON.stringify({ updatedAt, month, reservations: data }, null, 2);
-      await put(`salonboard-${month}.json`, payload, {
-        access: 'public', addRandomSuffix: false, allowOverwrite: true,
-        token: process.env.BLOB_READ_WRITE_TOKEN,
-      });
+      await storage.put(`salonboard-${month}.json`, payload);
       const totalRes = Object.values(data).reduce((s, a) => s + a.length, 0);
       console.log(`✅ salonboard-${month}.json 保存 (${Object.keys(data).length}日 / ${totalRes}件)`);
     }
 
     await context.storageState({ path: statePath });
 
-    // ── Vercel Blob に保存 ──────────────────────────────────────
+    // ── R2 に保存 ────────────────────────────────────────────────
     const payload = JSON.stringify({
       updatedAt: new Date().toISOString(),
       slots: allSlots,
@@ -394,30 +391,20 @@ async function syncSlots() {
       stylistMap: globalStylistMap,
       serviceSlots: allServiceSlots,
     }, null, 2);
-    await put(SLOTS_KEY, payload, {
-      access: 'public',
-      addRandomSuffix: false,
-      allowOverwrite: true,
-      token: process.env.BLOB_READ_WRITE_TOKEN,
-    });
+    await storage.put(SLOTS_KEY, payload);
 
     const totalDays  = Object.keys(allSlots).length;
     const totalSlots = Object.values(allSlots).reduce((s, a) => s + a.length, 0);
-    console.log(`\n✅ slots-data.json をBlobに保存 (${totalDays}日分 / ${totalSlots}枠)`);
+    console.log(`\n✅ slots-data.json を保存 (${totalDays}日分 / ${totalSlots}枠)`);
 
-    // ── 今日の予約を Blob に保存 ────────────────────────────────
+    // ── 今日の予約を保存 ──────────────────────────────────────────
     const todayPayload = JSON.stringify({
       updatedAt: new Date().toISOString(),
       date: `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`,
       reservations: todayReservations,
     }, null, 2);
-    await put(TODAY_RES_KEY, todayPayload, {
-      access: 'public',
-      addRandomSuffix: false,
-      allowOverwrite: true,
-      token: process.env.BLOB_READ_WRITE_TOKEN,
-    });
-    console.log(`✅ today-reservations.json をBlobに保存 (${todayReservations.length}件)`);
+    await storage.put(TODAY_RES_KEY, todayPayload);
+    console.log(`✅ today-reservations.json を保存 (${todayReservations.length}件)`);
 
   } finally {
     await browser.close();

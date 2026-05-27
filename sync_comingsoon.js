@@ -15,7 +15,7 @@
 
 require('dotenv').config();
 const { firefox } = require('playwright');
-const { put } = require('@vercel/blob');
+const storage = require('./lib/storage');
 const fs = require('fs'), path = require('path'), os = require('os');
 
 const stateDir  = path.join(__dirname, '.state');
@@ -148,20 +148,14 @@ async function syncOneDate(page, context, targetDate) {
   }, null, 2);
 
   if (!PREVIEW) {
-    // 日付別Blob (comingsoon-2026-05-01.json)
-    await put(`comingsoon-${targetDate}.json`, payload, {
-      access: 'public', addRandomSuffix: false, allowOverwrite: true,
-      token: process.env.BLOB_READ_WRITE_TOKEN,
-    });
+    // 日付別 (comingsoon-2026-05-01.json)
+    await storage.put(`comingsoon-${targetDate}.json`, payload);
     // 今日分は comingsoon-today.json にも保存（後方互換）
     const today = toDateStr(new Date());
     if (targetDate === today) {
-      await put('comingsoon-today.json', payload, {
-        access: 'public', addRandomSuffix: false, allowOverwrite: true,
-        token: process.env.BLOB_READ_WRITE_TOKEN,
-      });
+      await storage.put('comingsoon-today.json', payload);
     }
-    console.log(`  ✅ Blobに保存: comingsoon-${targetDate}.json`);
+    console.log(`  ✅ 保存: comingsoon-${targetDate}.json`);
   }
 
   return allReservations;
@@ -221,14 +215,11 @@ async function syncComingSoon() {
       const cookies = await context.cookies('https://1cs.jp');
       const jsessionId = cookies.find(c => c.name === 'JSESSIONID')?.value;
       if (jsessionId) {
-        await put('comingsoon-session.json', JSON.stringify({
+        await storage.put('comingsoon-session.json', JSON.stringify({
           savedAt: new Date().toISOString(),
           jsessionId,
           dwrRequests: capturedDwrRequests,
-        }, null, 2), {
-          access: 'public', addRandomSuffix: false, allowOverwrite: true,
-          token: process.env.BLOB_READ_WRITE_TOKEN,
-        });
+        }, null, 2));
         console.log(`✅ DWRセッション保存 (${capturedDwrRequests.length}テンプレート)`);
       }
     }

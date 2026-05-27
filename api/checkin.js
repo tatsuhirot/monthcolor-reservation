@@ -7,7 +7,7 @@
  */
 
 require('dotenv').config();
-const { put, head } = require('@vercel/blob');
+const storage = require('../lib/storage');
 const { v4: uuidv4 } = require('uuid');
 
 const VISITS_KEY = 'visits-log.json';
@@ -49,9 +49,7 @@ const MENUS_MASTER = {
 
 async function loadBlob(key) {
   try {
-    const meta = await head(key, { token: process.env.BLOB_READ_WRITE_TOKEN });
-    if (!meta) return [];
-    return await fetch(meta.url).then(r => r.json());
+    return (await storage.get(key)) || [];
   } catch {
     return [];
   }
@@ -59,11 +57,7 @@ async function loadBlob(key) {
 const loadVisits = () => loadBlob(VISITS_KEY);
 
 async function saveVisits(visits) {
-  await put(VISITS_KEY, JSON.stringify(visits, null, 2), {
-    access: 'public',
-    addRandomSuffix: false,
-    token: process.env.BLOB_READ_WRITE_TOKEN,
-  });
+  await storage.put(VISITS_KEY, JSON.stringify(visits, null, 2));
 }
 
 module.exports = async function handler(req, res) {

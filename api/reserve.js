@@ -7,7 +7,7 @@
  * 予約受付後、お客様に確認メールを送信する。
  */
 
-const { put } = require('@vercel/blob');
+const storage = require('../lib/storage');
 const { v4: uuidv4 } = require('uuid');
 const { Resend } = require('resend');
 const { CAPACITY, getOccupiedSlots, buildBookedMap, loadQueue, QUEUE_KEY } = require('./_shared');
@@ -33,7 +33,7 @@ module.exports = async function handler(req, res) {
 
   try {
     // queue から空き枠を確認（メール→queueが正の情報源）
-    const queue = await loadQueue(process.env.BLOB_READ_WRITE_TOKEN);
+    const queue = await loadQueue();
     const cap = CAPACITY[staffCategory] || 1;
     const booked = buildBookedMap(queue, staffCategory);
 
@@ -275,11 +275,5 @@ async function sendConfirmEmail({ date, time, name, menuName, email, phone, memo
 // ── キュー保存 ─────────────────────────────────────────────────
 async function saveQueue(queue) {
   const content = JSON.stringify(queue, null, 2);
-  await put(QUEUE_KEY, content, {
-    access:        'public',
-    token:         process.env.BLOB_READ_WRITE_TOKEN,
-    allowOverwrite: true,
-    contentType:   'application/json',
-    addRandomSuffix: false,
-  });
+  await storage.put(QUEUE_KEY, content);
 }

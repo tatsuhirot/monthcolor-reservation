@@ -13,7 +13,7 @@
  */
 
 require('dotenv').config();
-const { head, put } = require('@vercel/blob');
+const storage = require('../lib/storage');
 
 // ═══════════════════════════════════════════════════════════════
 // 共通ユーティリティ
@@ -171,9 +171,8 @@ async function syncOneDay(jsessionId, dwrRequests, dateStr, isToday) {
   allReservations.sort((a, b) => a.time.localeCompare(b.time));
 
   let changed = true, prevReservations = [];
-  const existingMeta = await head(`comingsoon-${dateStr}.json`, { token: process.env.BLOB_READ_WRITE_TOKEN });
-  if (existingMeta) {
-    const existing = await fetch(existingMeta.url).then(r => r.json()).catch(() => ({}));
+  const existing = await storage.get(`comingsoon-${dateStr}.json`);
+  if (existing) {
     prevReservations = existing.reservations || [];
     if (JSON.stringify(prevReservations) === JSON.stringify(allReservations)) changed = false;
   }
@@ -181,11 +180,11 @@ async function syncOneDay(jsessionId, dwrRequests, dateStr, isToday) {
   if (changed) {
     const payload = JSON.stringify({ updatedAt: new Date().toISOString(), date: dateStr, reservations: allReservations }, null, 2);
     const puts = [
-      put(`comingsoon-${dateStr}.json`, payload, { access: 'public', addRandomSuffix: false, allowOverwrite: true, token: process.env.BLOB_READ_WRITE_TOKEN }),
+      storage.put(`comingsoon-${dateStr}.json`, payload),
     ];
     // 今日分のみ comingsoon-today.json にも保存（後方互換）
     if (isToday) {
-      puts.push(put('comingsoon-today.json', payload, { access: 'public', addRandomSuffix: false, allowOverwrite: true, token: process.env.BLOB_READ_WRITE_TOKEN }));
+      puts.push(storage.put('comingsoon-today.json', payload));
     }
     await Promise.all(puts);
     if (isToday) {
@@ -203,10 +202,8 @@ async function handleCsSync(res) {
   baseDate.setTime(baseDate.getTime() + 9 * 60 * 60 * 1000); // JST
 
   try {
-    const sessionMeta = await head('comingsoon-session.json', { token: process.env.BLOB_READ_WRITE_TOKEN });
-    if (!sessionMeta) return res.status(200).json({ ok: false, reason: 'no session' });
-
-    const session = await fetch(sessionMeta.url).then(r => r.json());
+    const session = await storage.get('comingsoon-session.json');
+    if (!session) return res.status(200).json({ ok: false, reason: 'no session' });
     const { jsessionId, dwrRequests } = session;
     if (!jsessionId || !dwrRequests?.length) return res.status(200).json({ ok: false, reason: 'session incomplete' });
 
@@ -250,8 +247,7 @@ async function handleRemind(res) {
 
   let queue = [];
   try {
-    const meta = await head(QUEUE_KEY, { token: process.env.BLOB_READ_WRITE_TOKEN });
-    if (meta) queue = await fetch(meta.url).then(r => r.json());
+    queue = (await storage.get(QUEUE_KEY)) || [];
   } catch (e) {
     return res.status(500).json({ error: 'キュー読み込み失敗' });
   }
@@ -309,11 +305,10 @@ function jpDateLabel(dateStr) {
   return `${d.getMonth() + 1}/${d.getDate()}(${days[d.getDay()]})`;
 }
 
-async function fetchCSForReport(blobToken) {
+async function fetchCSForReport() {
   try {
-    const blob = await head('comingsoon-today.json', { token: blobToken });
-    if (!blob) return [];
-    const data = await fetch(blob.url).then(r => r.json());
+    const data = await storage.get('comingsoon-today.json');
+    if (!data) return [];
     return (data.reservations || []).map(r => ({
       time: r.time || (r.reserveTime || '').split('-')[0].trim() || '??:??',
       name: r.name || r.customerName || '—',
@@ -323,12 +318,11 @@ async function fetchCSForReport(blobToken) {
   } catch { return []; }
 }
 
-async function fetchSBForReport(date, blobToken) {
+async function fetchSBForReport(date) {
   const month = date.slice(0, 7);
   try {
-    const meta = await head(`salonboard-${month}.json`, { token: blobToken });
-    if (!meta) return [];
-    const data = await fetch(meta.url).then(r => r.json());
+    const data = await storage.get(`salonboard-${month}.json`);
+    if (!data) return [];
     return ((data.reservations || {})[date] || []).map(r => ({
       time: r.time || r.startTime || '??:??',
       name: r.customerName || r.name || '—',
@@ -372,10 +366,9 @@ async function handleMorningReport(res) {
     return res.status(200).json({ skipped: true, reason: 'LINE_NOTIFY_TOKEN not set' });
   }
 
-  const blobToken = process.env.BLOB_READ_WRITE_TOKEN;
   const date = todayJST();
 
-  const [csRes, sbRes] = await Promise.all([fetchCSForReport(blobToken), fetchSBForReport(date, blobToken)]);
+  const [csRes, sbRes] = await Promise.all([fetchCSForReport(), fetchSBForReport(date)]);
   const message = buildMorningMessage(date, csRes, sbRes);
   console.log(message);
 

@@ -9,7 +9,7 @@
  */
 
 require('dotenv').config();
-const { head } = require('@vercel/blob');
+const storage = require('../lib/storage');
 
 const SALES_KEY = 'sales-log.json';
 
@@ -30,8 +30,7 @@ module.exports = async function handler(req, res) {
   // sales-log 取得
   let sales = [];
   try {
-    const meta = await head(SALES_KEY, { token: process.env.BLOB_READ_WRITE_TOKEN });
-    if (meta) sales = await fetch(meta.url).then(r => r.json());
+    sales = (await storage.get(SALES_KEY)) || [];
   } catch {
     return res.status(200).json({ customers: [] });
   }

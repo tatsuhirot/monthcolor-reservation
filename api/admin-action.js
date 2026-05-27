@@ -9,7 +9,7 @@
  *   updateData?: { date, time, name, menuName, memo }  ← update 時のみ
  */
 
-const { put, head } = require('@vercel/blob');
+const storage = require('../lib/storage');
 const { v4: uuidv4 } = require('uuid');
 
 const QUEUE_KEY = 'reservations-queue.json';
@@ -118,21 +118,13 @@ function checkAuth(req) {
 
 async function loadQueue() {
   try {
-    const blob = await head(QUEUE_KEY, { token: process.env.BLOB_READ_WRITE_TOKEN });
-    if (!blob) return [];
-    const res = await fetch(blob.url);
-    return await res.json();
+    const data = await storage.get(QUEUE_KEY);
+    return data || [];
   } catch {
     return [];
   }
 }
 
 async function saveQueue(queue) {
-  await put(QUEUE_KEY, JSON.stringify(queue, null, 2), {
-    access:          'public',
-    token:           process.env.BLOB_READ_WRITE_TOKEN,
-    allowOverwrite:  true,
-    contentType:     'application/json',
-    addRandomSuffix: false,
-  });
+  await storage.put(QUEUE_KEY, JSON.stringify(queue, null, 2));
 }
