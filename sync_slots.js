@@ -232,43 +232,53 @@ async function syncSlots() {
       if (!loginBtn) throw new Error('ログインボタンが見つかりません');
       console.log('🖱  ログインボタンをクリック');
 
-      // SP版はAJAX認証 → クリック後にセッションCookieが設定されるまで待つ
+      // SP版はAJAX認証 → クリック後にログインページから遷移するまで待つ
       await loginBtn.click();
 
-      // ログイン成功を確認: Cookie に JSESSIONID が設定されるまで最大30秒待つ
+      // ログイン成功を確認: URLがログインページから変わるか、セッションCookieが設定されるまで最大30秒待つ
       let loginOk = false;
       for (let i = 0; i < 15; i++) {
         await page.waitForTimeout(2000);
+        const currentUrl = page.url();
+        // URLがログインページから離れた = ログイン成功
+        if (!currentUrl.includes('/login_sp/') && !currentUrl.includes('/login/')) {
+          loginOk = true;
+          console.log('🌐 ログイン後URL確認済み:', currentUrl);
+          break;
+        }
+        // フォールバック: JSSESSIONIDクッキー確認
         const cookies = await context.cookies('https://salonboard.com');
         if (cookies.some(c => c.name === 'JSESSIONID')) { loginOk = true; break; }
       }
       if (!loginOk) {
         await page.screenshot({ path: path.join(tmpDir, 'salonboard-login-fail.png'), fullPage: true }).catch(() => null);
-        throw new Error('SalonBoard login failed: JSESSIONID が取得できませんでした');
+        throw new Error('SalonBoard login failed: ログインページから遷移できませんでした');
       }
-      console.log('🍪 セッションCookie確認済み');
+      console.log('✅ ログイン成功を確認');
 
-      // 一旦 PC版トップページへ移動（SP→スケジュール直行はクラッシュする）
-      try {
-        await page.goto('https://salonboard.com/CLP/bt/top/', {
-          waitUntil: 'domcontentloaded', timeout: 60_000,
-        });
-      } catch (e) {
-        console.warn('⚠️  トップページ遷移タイムアウト（続行）');
+      // スケジュールページへ移動（CLP=PC版 → CLS=SP版の順でフォールバック）
+      let afterUrl = '';
+      const scheduleUrls = [
+        'https://salonboard.com/CLP/bt/schedule/salonSchedule/',
+        'https://salonboard.com/CLS/bt/schedule/salonSchedule/',
+      ];
+      let scheduleOk = false;
+      for (const url of scheduleUrls) {
+        try {
+          console.log('📅 スケジュールページへ移動:', url);
+          await page.goto(url, { waitUntil: 'commit', timeout: 60_000 });
+          await page.waitForTimeout(3000); // コンテンツ読み込み待ち
+          afterUrl = page.url();
+          if (!afterUrl.includes('/login')) { scheduleOk = true; break; }
+          console.warn('⚠️  ログインページにリダイレクトされた。次のURLを試す...');
+        } catch (e) {
+          console.warn(`⚠️  ${url} タイムアウト。次のURLを試す...`);
+        }
       }
-      await page.waitForTimeout(1500);
-
-      // スケジュールページへ移動
-      await page.goto('https://salonboard.com/CLP/bt/schedule/salonSchedule/', {
-        waitUntil: 'domcontentloaded', timeout: 120_000,
-      });
-      await page.waitForTimeout(1000);
-      const afterUrl = page.url();
-
-      if (afterUrl.includes('/login')) {
+      if (!scheduleOk) {
         await page.screenshot({ path: path.join(tmpDir, 'salonboard-login-fail.png'), fullPage: true }).catch(() => null);
         if (fs.existsSync(statePath)) { fs.rmSync(statePath, { force: true }); }
-        throw new Error(`SalonBoard login failed (redirected to login): ${afterUrl}`);
+        throw new Error(`SalonBoard スケジュールページへの移動に失敗: ${afterUrl}`);
       }
 
       await context.storageState({ path: statePath });
