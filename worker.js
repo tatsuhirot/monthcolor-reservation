@@ -31,10 +31,19 @@ const statePath = path.join(stateDir, 'salonboard.json');
 const lockPath  = path.join(stateDir, 'playwright.lock'); // Playwright 排他ロック
 if (!fs.existsSync(stateDir)) fs.mkdirSync(stateDir, { recursive: true });
 
+async function deleteStorageState() {
+  try {
+    await fs.promises.rm(statePath, { force: true });
+  } catch (err) {
+    if (err?.code !== 'ENOENT') throw err;
+  }
+}
+
 const isWatch = process.argv.includes('--watch');
 const isRetry = process.argv.includes('--retry');
 
 let lastSlotsSync = 0; // 最後に空き枠同期した時刻
+let _isBusy = false;  // 予約処理中フラグ
 
 // ── メイン ───────────────────────────────────────────────────────
 async function main() {
@@ -63,6 +72,11 @@ async function syncSlotsIfNeeded() {
 
 // ── 空き枠同期の実体（強制実行用。ロックチェックのみ） ───────────────────
 async function runSyncSlots() {
+  if (_isBusy) {
+    console.log('   ⏸  予約処理中のためスロット同期をスキップ');
+    return;
+  }
+
   if (fs.existsSync(lockPath)) {
     console.log(`[${now()}] ⏭ 空き枠同期スキップ（Playwright ロック中）`);
     return;
@@ -132,7 +146,12 @@ async function processQueue() {
 
     try {
       if (type === 'register') {
-        await registerInSalonBoard(data);
+        _isBusy = true;
+        try {
+          await registerInSalonBoard(data);
+        } finally {
+          _isBusy = false;
+        }
       } else if (type === 'cancel') {
         await cancelInSalonBoard(data);
         // 直近3日以内のキャンセルは即時sync（当日は特に重要）
@@ -152,6 +171,7 @@ async function processQueue() {
 
 // ── SalonBoard ログイン共通ヘルパー ──────────────────────────────────
 async function ensureLoggedIn(page, context, dateKey) {
+  try {
   console.log('   🔐 SalonBoard にアクセス中...');
   await page.goto('https://salonboard.com/login_sp/', { waitUntil: 'domcontentloaded', timeout: 60_000 });
 
@@ -173,11 +193,14 @@ async function ensureLoggedIn(page, context, dateKey) {
     );
     if (page.url().includes('/login')) {
       await page.screenshot({ path: path.join(tmpDir, 'salonboard-login-fail-worker.png'), fullPage: true }).catch(() => null);
-      if (fs.existsSync(statePath)) fs.rmSync(statePath, { force: true });
       throw new Error(`SalonBoard login failed`);
     }
     await context.storageState({ path: statePath });
     console.log('   ✅ ログイン成功 →', page.url());
+  }
+  } catch (err) {
+    await deleteStorageState();
+    throw err;
   }
 }
 
@@ -229,6 +252,9 @@ async function registerInSalonBoard({ date, time, name, menuName }) {
     await fillForm(page, { name, menuName });
     await context.storageState({ path: statePath });
 
+  } catch (err) {
+    await deleteStorageState();
+    throw err;
   } finally {
     await browser.close();
   }
@@ -334,6 +360,9 @@ async function cancelInSalonBoard({ date, time, name }) {
     await context.storageState({ path: statePath });
     console.log(`   ✅ SalonBoard キャンセル完了: ${date} ${time} / ${name}`);
 
+  } catch (err) {
+    await deleteStorageState();
+    throw err;
   } finally {
     await browser.close();
   }

@@ -308,10 +308,12 @@ async function syncSlots() {
       const monthKey  = dateLabel.slice(0, 7);
       const label     = `${current.getFullYear()}/${current.getMonth()+1}/${current.getDate()}`;
 
-      // ページクラッシュ・タイムアウト時は1回リトライ、それでも失敗なら空データでスキップ
+      // ネットワークタイムアウト時は2回リトライ、それでも失敗なら次の日付へスキップ
       let html;
-      for (let attempt = 0; attempt < 2; attempt++) {
+      let skipDate = false;
+      for (let attempt = 0; attempt < 3; attempt++) {
         try {
+          await page.waitForTimeout(1000 + Math.random() * 1000);
           await page.goto(
             `https://salonboard.com/CLP/bt/schedule/salonSchedule/?date=${dateKey}`,
             { waitUntil: 'domcontentloaded', timeout: 90_000 }
@@ -320,15 +322,25 @@ async function syncSlots() {
           html = await page.content();
           break;
         } catch (e) {
-          if (attempt === 0 && (e.message.includes('crashed') || e.message.includes('closed') || e.name === 'TimeoutError')) {
+          const message = e.message || '';
+          const isNetworkTimeout = message.includes('NS_ERROR_NET_TIMEOUT') || message.includes('ERR_TIMED_OUT');
+          if (isNetworkTimeout && attempt < 2) {
             console.warn(`⚠️  ${label}: タイムアウト、リトライ中...`);
             await page.waitForTimeout(3000);
+          } else if (isNetworkTimeout) {
+            console.warn(`${label}: NS_ERROR_NET_TIMEOUT retries exhausted, skipping date`);
+            skipDate = true;
+            break;
           } else {
             console.warn(`⚠️  ${label}: 取得失敗（スキップ）: ${e.message.slice(0, 60)}`);
             html = '<html></html>'; // 空データで続行
             break;
           }
         }
+      }
+      if (skipDate) {
+        current.setDate(current.getDate() + 1);
+        continue;
       }
       const { slots, slotCounts, activeStylists, slotsByDateRaw } = parseEmptySlots(html);
       const stylistMap = parseStylistMap(html);
