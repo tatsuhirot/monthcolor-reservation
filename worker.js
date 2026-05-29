@@ -206,7 +206,9 @@ async function registerInSalonBoard({ date, time, name, menuName }) {
     if (!slot) throw new Error(`空き枠が見つかりません（${date} ${time}）`);
 
     await slot.scrollIntoViewIfNeeded();
-    await slot.click();
+    await slot.click({ force: true, timeout: 5000 }).catch(async () => {
+      await page.evaluate(el => el.click(), slot).catch(() => {});
+    });
     await page.waitForTimeout(1500);
 
     const newBtn = await page.$('[href*="reserveInput"], .newReserveBtn, a:has-text("新規予約")');
