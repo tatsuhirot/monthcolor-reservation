@@ -30,6 +30,11 @@ const stateDir  = path.join(__dirname, '.state');
 const statePath = path.join(stateDir, 'salonboard.json');
 const lockPath  = path.join(stateDir, 'playwright.lock'); // Playwright 排他ロック
 if (!fs.existsSync(stateDir)) fs.mkdirSync(stateDir, { recursive: true });
+// 起動時に残留lockを削除（PM2再起動後のstale lock対策）
+if (fs.existsSync(lockPath)) {
+  fs.unlinkSync(lockPath);
+  console.log('🧹 起動時に残留lockを削除しました');
+}
 
 async function deleteStorageState() {
   try {
