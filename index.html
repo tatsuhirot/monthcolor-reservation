@@ -2,295 +2,621 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>MONTH COLOR — 東陽町のヘアサロン</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MonthColor(マンスカラー)白髪染め | ヘアカラー＆まつ毛パーマ東陽町</title>
+<meta name="description" content="【居心地のいいヘアカラー】ヘアカラー自然に、早く、低価格。まつ毛パーマ、セルフホワイトニングできます。半個室の感染対策で、安心してご来店頂けます。白髪染め、髪質改善。ご相談ください。">
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html { font-size: 14px; -webkit-text-size-adjust: 100%; }
+html { scroll-behavior: smooth; }
 body {
   font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
-  background: #f5f5f5;
   color: #333;
-  min-height: 100vh;
+  line-height: 1.8;
+  background: #fff;
 }
 a { color: inherit; text-decoration: none; }
+img { max-width: 100%; height: auto; display: block; }
 
-.app {
-  max-width: 480px;
+/* ===== HEADER ===== */
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(255,255,255,0.96);
+  border-bottom: 1px solid #eee;
+  backdrop-filter: blur(8px);
+}
+.header_container {
+  max-width: 1100px;
   margin: 0 auto;
-  background: #fff;
-  min-height: 100vh;
-  box-shadow: 0 0 20px rgba(0,0,0,.08);
+  padding: 0 20px;
+  height: 64px;
   display: flex;
-  flex-direction: column;
-}
-
-/* ── ヘロー ── */
-.hero {
-  position: relative;
-  height: 240px;
-  background: linear-gradient(160deg, #1a1a1a 0%, #2c2c2c 50%, #3a3020 100%);
-  display: flex;
-  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  overflow: hidden;
+  justify-content: space-between;
+  gap: 20px;
 }
-.hero::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(ellipse at 30% 60%, rgba(210,160,100,.25) 0%, transparent 55%),
-    radial-gradient(ellipse at 75% 30%, rgba(238,102,0,.12) 0%, transparent 50%);
+.header_logo img {
+  height: 44px;
+  width: auto;
 }
-.hero__logo {
-  width: 64px; height: 64px;
-  border-radius: 50%;
-  background: #fff;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 8px; font-weight: 700; letter-spacing: .5px;
-  color: #1a1a1a; text-align: center; line-height: 1.3;
-  margin-bottom: 12px;
-  box-shadow: 0 4px 16px rgba(0,0,0,.3);
-  position: relative; z-index: 1;
-}
-.hero__title {
-  font-size: 24px; font-weight: 700; letter-spacing: 3px;
-  color: #fff; position: relative; z-index: 1;
-}
-.hero__sub {
-  font-size: 11px; color: rgba(255,255,255,.6);
-  letter-spacing: 2px; margin-top: 6px; position: relative; z-index: 1;
-}
-
-/* ── ナビ ── */
-.nav {
+.header_nav {
   display: flex;
-  border-bottom: 1px solid #e8e8e8;
+  align-items: center;
+  gap: 20px;
+  font-size: 13px;
+  color: #555;
+}
+.header_nav a:hover { color: #44BBC1; }
+.btn_book {
+  display: inline-block;
+  background: #44BBC1;
+  color: #fff;
+  font-weight: 700;
+  font-size: 13px;
+  padding: 8px 20px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.btn_book:hover { background: #38a8ae; color: #fff; }
+
+/* hamburger menu (mobile) */
+.hamburger { display: none; flex-direction: column; gap: 5px; cursor: pointer; padding: 8px; }
+.hamburger span { width: 24px; height: 2px; background: #333; display: block; }
+.mobile_nav {
+  display: none;
+  flex-direction: column;
   background: #fff;
-  position: sticky; top: 0; z-index: 10;
+  border-top: 1px solid #eee;
+  padding: 12px 20px 20px;
+  gap: 12px;
+  font-size: 14px;
 }
-.nav__item {
-  flex: 1; text-align: center;
-  padding: 12px 4px;
-  font-size: 12px; font-weight: 600; color: #555;
-  border-bottom: 2px solid transparent;
-  transition: color .15s, border-color .15s;
-}
-.nav__item.active, .nav__item:hover { color: #e60; border-bottom-color: #e60; }
+.mobile_nav a { display: block; padding: 6px 0; border-bottom: 1px solid #f0f0f0; color: #555; }
+.mobile_nav .btn_book { text-align: center; margin-top: 8px; }
 
-/* ── セクション共通 ── */
-.section { padding: 20px 14px; border-bottom: 8px solid #f5f5f5; }
-.section__title {
-  font-size: 13px; font-weight: 700; color: #888;
-  letter-spacing: 1px; text-transform: uppercase;
-  margin-bottom: 14px;
-  display: flex; align-items: center; gap: 8px;
+/* ===== SECTIONS ===== */
+.sec { padding: 56px 20px; }
+.secContainer { max-width: 860px; margin: 0 auto; }
+.secHeading {
+  font-family: Georgia, serif;
+  font-size: 24px;
+  font-weight: 400;
+  letter-spacing: 0.1em;
+  color: #333;
+  margin-bottom: 28px;
+  text-align: center;
 }
-.section__title::after {
-  content: ''; flex: 1; height: 1px; background: #eee;
+.secContent { margin-bottom: 24px; }
+.secContent p { color: #555; font-size: 15px; }
+.btn_more {
+  display: inline-block;
+  border: 1px solid #44BBC1;
+  color: #44BBC1;
+  padding: 8px 28px;
+  font-size: 13px;
+  border-radius: 2px;
+  transition: all 0.2s;
 }
+.btn_more:hover { background: #44BBC1; color: #fff; }
 
-/* ── サービスカード ── */
-.service-grid {
+/* ===== HERO ===== */
+.hero { padding: 0; }
+.hero img { width: 100%; max-height: 600px; object-fit: cover; }
+
+/* ===== NEWS ===== */
+.topNews { background: #fafafa; }
+.topNews__block { margin-bottom: 20px; }
+.block { margin-bottom: 12px; }
+.block__text { font-size: 14px; color: #555; padding: 10px 0; border-bottom: 1px solid #eee; }
+.topNews__btn { text-align: center; }
+
+/* ===== FREE SIMPLE (About / Flow / FAQ / Cancel) ===== */
+.topFreeSimple__desc { font-size: 15px; color: #555; margin-bottom: 24px; }
+.topFreeSimple__desc div { margin-bottom: 0.3em; }
+.topFreeSimple__visual { margin-bottom: 24px; }
+.topFreeSimple__visual img { border-radius: 4px; width: 100%; max-height: 400px; object-fit: cover; }
+.topFreeSimple__btn { text-align: center; }
+
+/* review blocks */
+.block__title { font-size: 18px; font-weight: 700; color: #333; margin: 24px 0 12px; }
+.block__eyecatch { margin-bottom: 20px; }
+.block__eyecatch__inner { border-radius: 4px; overflow: hidden; }
+.block__eyecatch__inner img { width: 100%; }
+.block__eyecatch__video { position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius: 4px; }
+.block__eyecatch__video iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+
+/* ===== MENU ===== */
+.topMenu { background: #fafafa; }
+.topMenu__desc { font-size: 15px; color: #555; margin-bottom: 20px; }
+.topMenu__visual { margin-bottom: 24px; }
+.topMenu__visual__video { position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius: 4px; }
+.topMenu__visual__video iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+.topMenu__btn { text-align: center; }
+
+/* ===== GALLERY ===== */
+.topGallery__portfolio__list {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  list-style: none;
+  margin-bottom: 24px;
+}
+.topGallery__portfolio__item { aspect-ratio: 1/1; overflow: hidden; }
+.topGallery__portfolio__item img { width: 100%; height: 100%; object-fit: cover; }
+.topGallery__btn { text-align: center; }
+
+/* ===== SHOP (SALON INFO) ===== */
+.topShop__visual { margin-bottom: 24px; }
+.topShop__visual img { border-radius: 4px; width: 100%; max-height: 360px; object-fit: cover; }
+.topShop__btn { text-align: center; }
+
+/* ===== FAQ ===== */
+.topFaq { background: #fafafa; }
+.topFaq__desc { font-size: 14px; color: #555; margin-bottom: 24px; }
+.topFaq__desc strong { color: #333; }
+
+/* ===== FOOTER / SNS ===== */
+.snsIcons { padding: 32px 20px; text-align: center; background: #f5f5f5; }
+.snsIcons__list { list-style: none; display: flex; justify-content: center; gap: 20px; }
+.snsIcons__img { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; }
+
+.homefooter { background: #fff; padding: 40px 20px; }
+.homefooter_container { max-width: 860px; margin: 0 auto; }
+.homefooter_footerTitle { font-size: 16px; font-weight: 700; text-align: center; margin-bottom: 28px; color: #333; }
+.homefooter__infoTable { width: 100%; border-collapse: collapse; margin-bottom: 28px; font-size: 14px; }
+.homefooter__infoTable td { padding: 8px 12px; border-bottom: 1px solid #eee; vertical-align: top; }
+.homefooter__infoTable .__title { width: 80px; color: #888; white-space: nowrap; }
+.homefooter__infoTable .__text a { color: #44BBC1; }
+.homefooter__map { border-radius: 4px; overflow: hidden; margin-bottom: 0; }
+.homefooter__map iframe { width: 100%; height: 280px; border: 0; }
+
+.footer { background: #333; color: #bbb; padding: 24px 20px; }
+.footer_container { max-width: 860px; margin: 0 auto; }
+.footer_nav__list { list-style: none; display: flex; flex-wrap: wrap; gap: 8px 16px; justify-content: center; margin-bottom: 16px; }
+.footer_nav__link { font-size: 12px; }
+.footer_copyright { text-align: center; font-size: 12px; color: #888; }
+
+/* ===== MOBILE FOOTER BUTTONS ===== */
+.mobileAction {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 90;
+  background: #fff;
+  border-top: 1px solid #ddd;
+  padding: 10px 16px;
+  justify-content: space-between;
   gap: 10px;
 }
-.service-card {
-  border-radius: 10px;
-  overflow: hidden;
-  border: 1px solid #eee;
-  display: flex; flex-direction: column;
-  transition: box-shadow .15s;
-}
-.service-card:active { box-shadow: 0 2px 12px rgba(0,0,0,.1); }
-.service-card__thumb {
-  height: 90px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 36px;
-}
-.service-card__thumb--hair  { background: linear-gradient(135deg, #ffe8cc, #ffcca0); }
-.service-card__thumb--white { background: linear-gradient(135deg, #e8f4ff, #c8e8ff); }
-.service-card__thumb--lash  { background: linear-gradient(135deg, #ffe8f0, #ffc8dc); }
-.service-card__thumb--spa   { background: linear-gradient(135deg, #e8ffe8, #c0f0c0); }
-.service-card__body { padding: 10px; background: #fff; flex: 1; }
-.service-card__name { font-size: 13px; font-weight: 700; color: #1a1a1a; margin-bottom: 3px; }
-.service-card__price { font-size: 11px; color: #e60; font-weight: 600; }
-.service-card__link {
-  display: block; text-align: center; padding: 8px;
-  background: #f8f8f8; font-size: 12px; color: #555;
-  border-top: 1px solid #eee;
-}
-
-/* ── お知らせ ── */
-.news-item {
-  display: flex; gap: 12px; align-items: flex-start;
-  padding: 10px 0;
-  border-bottom: 1px solid #f0f0f0;
-}
-.news-item:last-child { border-bottom: none; }
-.news-date { font-size: 11px; color: #aaa; white-space: nowrap; padding-top: 2px; }
-.news-badge {
-  font-size: 10px; padding: 2px 6px; border-radius: 3px;
-  background: #fff3e0; color: #e60; font-weight: 600; white-space: nowrap;
-}
-.news-text { font-size: 13px; color: #333; line-height: 1.5; flex: 1; }
-
-/* ── アクセス ── */
-.access-map {
-  width: 100%; height: 180px;
-  background: linear-gradient(135deg, #e8e8e8, #d0d0d0);
-  display: flex; align-items: center; justify-content: center;
-  border-radius: 8px; margin-bottom: 12px;
-  color: #999; font-size: 13px; overflow: hidden;
-}
-.access-map iframe { width: 100%; height: 100%; border: none; }
-.access-info dl { display: grid; grid-template-columns: auto 1fr; gap: 8px 12px; }
-.access-info dt { font-size: 12px; color: #888; font-weight: 600; white-space: nowrap; }
-.access-info dd { font-size: 13px; color: #333; line-height: 1.5; }
-
-/* ── 予約CTAバー（固定） ── */
-.reserve-bar {
-  position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
-  width: 100%; max-width: 480px;
-  padding: 10px 14px 20px;
-  background: linear-gradient(transparent, #fff 30%);
-  z-index: 20;
-}
-.reserve-btn {
-  display: flex; align-items: center; justify-content: center; gap: 8px;
-  width: 100%; height: 50px;
-  background: #e60; color: #fff;
-  font-size: 16px; font-weight: 700;
-  border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(238,102,0,.4);
-  transition: background .15s;
-}
-.reserve-btn:active { background: #c55200; }
-.reserve-btn::before { content: '📅'; font-size: 18px; }
-
-/* ── フッター ── */
-.footer {
-  padding: 24px 14px 100px;
+.mobileAction__access {
+  flex: 1;
   text-align: center;
-  border-top: 1px solid #f0f0f0;
+  padding: 10px 0;
+  border: 1px solid #44BBC1;
+  color: #44BBC1;
+  font-weight: 700;
+  font-size: 14px;
+  border-radius: 4px;
+  cursor: pointer;
 }
-.footer__name { font-size: 14px; font-weight: 700; letter-spacing: 2px; color: #1a1a1a; margin-bottom: 4px; }
-.footer__copy { font-size: 11px; color: #bbb; }
+.mobileAction__book {
+  flex: 2;
+  text-align: center;
+  padding: 10px 0;
+  background: #44BBC1;
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: block;
+}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 768px) {
+  .header_nav { display: none; }
+  .hamburger { display: flex; }
+  .mobile_nav.open { display: flex; }
+  .mobileAction { display: flex; }
+  body { padding-bottom: 64px; }
+  .topGallery__portfolio__list { grid-template-columns: repeat(3, 1fr); }
+  .secHeading { font-size: 20px; }
+  .hero img { max-height: 260px; }
+}
+
+/* SNS icon colors */
+.snsIcons__img__instagram { background: radial-gradient(circle at 30% 107%, #fdf497 0%, #fd5949 45%, #d6249f 60%, #285AEB 90%); padding: 6px; }
+.snsIcons__img__twitter { background: #1DA1F2; padding: 6px; }
+.snsIcons__img__fb { background: #4267B2; padding: 6px; }
+
+/* SNS icon SVG fallbacks */
+.snsIcons__link { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 50%; }
+.snsIcons__link.ig { background: radial-gradient(circle at 30% 107%, #fdf497 0%, #fd5949 45%, #d6249f 60%, #285AEB 90%); }
+.snsIcons__link.tw { background: #1DA1F2; }
+.snsIcons__link.fb { background: #4267B2; }
+.snsIcons__link svg { width: 20px; height: 20px; fill: #fff; }
 </style>
 </head>
 <body>
-<div class="app">
 
-  <!-- ヒーロー -->
-  <div class="hero">
-    <div class="hero__logo">MONTH<br>COLOR</div>
-    <div class="hero__title">MONTH COLOR</div>
-    <div class="hero__sub">HAIR &amp; BEAUTY SALON</div>
+<!-- ===== HEADER ===== -->
+<header class="header">
+  <div class="header_container">
+    <a href="/" class="header_logo">
+      <img src="https://1cs.jp/system/contents/Shop/22706/20220416102810322_1.jpg" alt="MonthColor ロゴ">
+    </a>
+    <nav class="header_nav">
+      <a href="#news">ニュース</a>
+      <a href="#about">MonthColorの想い</a>
+      <a href="#flow">ご利用の流れ</a>
+      <a href="#menu">メニュー</a>
+      <a href="#shop">サロン情報</a>
+      <a href="#gallery">ギャラリー</a>
+      <a href="#faq">よくある質問</a>
+      <a href="#cancel">キャンセルポリシー</a>
+      <a href="/reservation.html" class="btn_book">予約する</a>
+    </nav>
+    <div class="hamburger" id="hamburgerBtn" aria-label="メニュー">
+      <span></span><span></span><span></span>
+    </div>
   </div>
-
-  <!-- ナビ -->
-  <nav class="nav">
-    <a class="nav__item active" href="/">トップ</a>
-    <a class="nav__item" href="/menu">メニュー</a>
-    <a class="nav__item" href="/#access">アクセス</a>
-    <a class="nav__item" href="/reserve">予約する</a>
+  <nav class="mobile_nav" id="mobileNav">
+    <a href="#news">ニュース</a>
+    <a href="#about">MonthColorの想い</a>
+    <a href="#flow">ご利用の流れ</a>
+    <a href="#menu">メニュー</a>
+    <a href="#shop">サロン情報</a>
+    <a href="#gallery">ギャラリー</a>
+    <a href="#faq">よくある質問</a>
+    <a href="#cancel">キャンセルポリシー</a>
+    <a href="/reservation.html" class="btn_book">予約する</a>
   </nav>
+</header>
 
-  <!-- サービス -->
-  <div class="section">
-    <div class="section__title">Services</div>
-    <div class="service-grid">
-      <a class="service-card" href="/menu#hair">
-        <div class="service-card__thumb service-card__thumb--hair">💇</div>
-        <div class="service-card__body">
-          <div class="service-card__name">ヘアカラー</div>
-          <div class="service-card__price">¥4,400〜</div>
-        </div>
-        <span class="service-card__link">メニューを見る ›</span>
-      </a>
-      <a class="service-card" href="/menu#white">
-        <div class="service-card__thumb service-card__thumb--white">✨</div>
-        <div class="service-card__body">
-          <div class="service-card__name">セルフ<br>ホワイトニング</div>
-          <div class="service-card__price">¥3,300〜</div>
-        </div>
-        <span class="service-card__link">メニューを見る ›</span>
-      </a>
-      <a class="service-card" href="/menu#lash">
-        <div class="service-card__thumb service-card__thumb--lash">👁</div>
-        <div class="service-card__body">
-          <div class="service-card__name">まつ毛パーマ</div>
-          <div class="service-card__price">¥5,500〜</div>
-        </div>
-        <span class="service-card__link">メニューを見る ›</span>
-      </a>
-      <a class="service-card" href="/menu#spa">
-        <div class="service-card__thumb service-card__thumb--spa">🧖</div>
-        <div class="service-card__body">
-          <div class="service-card__name">ドライ<br>ヘッドスパ</div>
-          <div class="service-card__price">¥3,300〜</div>
-        </div>
-        <span class="service-card__link">メニューを見る ›</span>
-      </a>
-    </div>
-  </div>
+<!-- ===== HERO ===== -->
+<section class="hero">
+  <img
+    src="https://comingsoon-production-pwa-uploads.s3.ap-northeast-1.amazonaws.com/store/5912/1472922efa4378f04796e44d6496144b.png"
+    alt="MonthColor(マンスカラー)白髪染めのホームheroImage"
+  >
+</section>
 
-  <!-- お知らせ -->
-  <div class="section">
-    <div class="section__title">News</div>
-    <div class="news-item">
-      <div class="news-date">2026/04/01</div>
-      <div>
-        <div class="news-badge">お知らせ</div>
-        <div class="news-text">自社予約サイトがオープンしました。オンラインから24時間ご予約いただけます。</div>
+<!-- ===== NEWS ===== -->
+<section id="news" class="sec topNews">
+  <div class="secContainer">
+    <h2 class="secHeading">ニュース</h2>
+    <div class="topNews__block">
+      <div class="block">
+        <p class="block__text">新メニュー：お待たせしました。髪に、頭皮に優しいスキャルプオイルカラー登場！</p>
+      </div>
+      <div class="block">
+        <p class="block__text">2025年5月1日を持ちまして、3周年になりました。皆さまの支えに心から感謝いたします。これからも安心と笑顔を届けてまいります。</p>
+      </div>
+      <div class="block">
+        <p class="block__text">ご利用しやすい、セルフホワイトニング毎月利用プランが始まりました。</p>
       </div>
     </div>
-    <div class="news-item">
-      <div class="news-date">2026/04/01</div>
-      <div>
-        <div class="news-badge">営業</div>
-        <div class="news-text">GW期間中（4/29〜5/6）は通常通り営業いたします。</div>
+    <div class="topNews__btn secContent">
+      <a href="https://monthcolor.pwa.1cs.jp/news" class="btn_more" target="_blank" rel="noopener">もっとみる</a>
+    </div>
+  </div>
+</section>
+
+<!-- ===== ABOUT ===== -->
+<section id="about" class="sec">
+  <div class="secContainer">
+    <h2 class="secHeading">MonthColorの想い</h2>
+    <div class="topFreeSimple__desc secContent">
+      <p>毎月プロのヘアカラーで納得と満足を</p>
+      <br>
+      <p>お客様の「何度も通える」を実現したお店です。<br><br>
+      東陽町駅2番出口徒歩10秒の場所に位置し、<br>
+      お仕事帰りやお買い物のついでにヘアカラーを受けることができます。<br>
+      また何度も通えるくつろぎを実現し体への優しさも考慮して、オーガニックのカラー剤を採用しています。<br><br>
+      新たに銀座で人気のセルフホワイトニングもスタートして<br>
+      ヘアカラーとセルフホワイトニングの両方を行うことができます。<br><br>
+      お一人の時間を大事にしつつ、お客様が何度も通いたくなるようなMonthColorを目指します。</p>
+    </div>
+    <div class="topFreeSimple__visual secContent">
+      <img
+        src="https://comingsoon-production-pwa-uploads.s3.ap-northeast-1.amazonaws.com/store/5912/f50009a73711469b94f6b09c5f0a0a11.jpg"
+        alt="MonthColorの想い"
+      >
+    </div>
+
+    <h3 class="block__title">新しい章、新しい美の旅</h3>
+    <p class="topFreeSimple__desc">
+      OPEN以来、私たちのヘアカラー店は常に革新的で、お客様一人ひとりに合わせたカラーリングを提供してまいりました。
+      お客様からの温かいご支持に応えるべく、新たにまつ毛パーマのサービスをスタートすることをお知らせいたします。
+      ヘアカラーで外見を新しくする喜びと同様に、まつ毛パーマで目元に深みを加えることで、お客様一人ひとりの美を最大限に引き出します。
+    </p>
+    <div class="block__eyecatch secContent">
+      <div class="block__eyecatch__video">
+        <iframe loading="lazy" src="https://www.youtube.com/embed/w3H8PRWg-gc?feature=oembed&playsinline=1&rel=0" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen title="MonthColorまつ毛パーマ"></iframe>
+      </div>
+    </div>
+
+    <h3 class="block__title">セルフホワイトニング毎月ご利用コース</h3>
+    <div class="block__eyecatch secContent">
+      <div class="block__eyecatch__inner">
+        <img
+          src="https://comingsoon-production-pwa-uploads.s3.ap-northeast-1.amazonaws.com/store/5912/78c5aa8d5fecaab50982afb1a87ae5de.png"
+          alt="セルフホワイトニング毎月利用コース"
+        >
+      </div>
+    </div>
+    <div class="topFreeSimple__desc secContent">
+      <p>✨ 毎月、あなたの笑顔を最高にする一歩 ✨<br><br>
+      🌟 毎月利用のセルフホワイトニングキットで、継続して美しい白い歯を維持しましょう！<br><br>
+      <strong>毎月の継続的なケア：</strong>手軽なケアで、歯を傷つけることなく美しさを保ちます。<br>
+      <strong>コスパ抜群：</strong>毎月の固定料金で、高額な美容歯科治療のコストを気にせずに最高のケアを体験。<br>
+      <strong>最新の効果を継続：</strong>毎月利用することで効果を持続させ、いつでも自信を持って笑顔を見せられます。<br>
+      <strong>フルサポート：</strong>使い方やケアに関する疑問に、スタッフのサポートが迅速に対応。</p>
+    </div>
+    <div class="block__eyecatch secContent">
+      <div class="block__eyecatch__inner">
+        <img
+          src="https://comingsoon-production-pwa-uploads.s3.ap-northeast-1.amazonaws.com/store/5912/47c73d5cf9002dc071cf71ffd61b812b.png"
+          alt="ホワイトニング"
+        >
+      </div>
+    </div>
+
+    <h3 class="block__title">お客様の声</h3>
+    <div class="topFreeSimple__desc secContent" style="font-size:14px;">
+      <p><strong>ひげ男爵さん（男性/40代/自営業） ★★★★★</strong><br>
+      東陽町駅前にある立地の良さと、他のヘアカラー専門店よりも広々としてリラックスできるのが良いところです。パーテーションで仕切られていて、半個室なのも良い感じです。また、オートシャンプーのお店が多いなか、こちらの店舗では手洗いなのが特徴。白髪がだいぶ目立つ年齢になってきましたが、定期的にこちらで染めようと思います！</p>
+      <br>
+      <p><strong>かおるんさん（女性/50代） ★★★★★</strong><br>
+      お店も担当のかたもとてもいい雰囲気でリラックスして過ごせました。色々お話聞かせていただいてありがとうございました。またカラーお願いします。</p>
+      <br>
+      <p><strong>芭蕉さん（男性/40代） ★★★★★</strong><br>
+      男性で少し入りづらいと思っていましたがプライベートな空間と広々とした雰囲気で通ってた美容室よりも、全然落ち着けました。スピード、クオリティ、サービスどれも満足です。</p>
+      <br>
+      <p><strong>ランカさん（女性/50代） ★★★★★</strong><br>
+      店内は白を基調としていてとても綺麗なお店でした。スタッフさんと楽しくおしゃべりできますし、飲み物や飴、マスクの提供もあります。プレミアムトリートメントはまじオススメです。</p>
+      <br>
+      <p><strong>なりんこさん（女性/30代後半） ★★★★</strong><br>
+      グレーカラーを何度かしている為、明るく染めることを諦めかけていましたが、少しずつ馴染ませながらトーンアップできるよう美容師さんが一緒に考えてくださったり、色々と親身にアドバイスいただけてとても嬉しかったです。トリートメントが感動的に素晴らしい！！</p>
+    </div>
+
+    <div class="topFreeSimple__btn secContent">
+      <a href="https://monthcolor.pwa.1cs.jp/desire" class="btn_more" target="_blank" rel="noopener">もっとみる</a>
+    </div>
+  </div>
+</section>
+
+<!-- ===== FLOW ===== -->
+<section id="flow" class="sec topNews">
+  <div class="secContainer">
+    <h2 class="secHeading">マンスカラー：ご利用の流れ</h2>
+    <div class="topFreeSimple__desc secContent">
+      <p>Step1→受付　Step2→カラー選定　Step3→カラーリング<br>
+      Step4→シャンプー　Step5→セルフブロー　Step6→お会計<br><br>
+      流れをスムーズにしていくことによって、スムーズにカラーリングをすることができ、低価格を実現することができました。</p>
+    </div>
+    <div class="topFreeSimple__btn secContent">
+      <a href="https://monthcolor.pwa.1cs.jp/flow" class="btn_more" target="_blank" rel="noopener">もっとみる</a>
+    </div>
+  </div>
+</section>
+
+<!-- ===== MENU ===== -->
+<section id="menu" class="sec topMenu">
+  <div class="secContainer">
+    <h2 class="secHeading">メニュー</h2>
+    <div class="topMenu__desc secContent">
+      <p>▼まつ毛パーマメニュー<br>
+      まつ毛パーマ　　3,800円（通常5,400円が割引中）<br><br>
+      ▼セルフホワイトニングメニュー<br>
+      セルフホワイトニング　　6,600円（期間限定50%OFF中）</p>
+    </div>
+    <div class="block__eyecatch secContent">
+      <div class="block__eyecatch__inner">
+        <img
+          src="https://comingsoon-production-pwa-uploads.s3.ap-northeast-1.amazonaws.com/store/5912/48c7f08ee2bd6f1c72e80ea348bbfc74.png"
+          alt="メニュー表"
+        >
+      </div>
+    </div>
+    <div class="topMenu__visual secContent">
+      <div class="topMenu__visual__video">
+        <iframe loading="lazy" src="https://www.youtube.com/embed/pX7meuaP3SE?feature=oembed&playsinline=1&rel=0" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen title="【ホワイトニング】マンスカラー東陽町"></iframe>
+      </div>
+    </div>
+    <div class="topMenu__btn secContent">
+      <a href="https://monthcolor.pwa.1cs.jp/menu" class="btn_more" target="_blank" rel="noopener">もっとみる</a>
+    </div>
+  </div>
+</section>
+
+<!-- ===== SHOP ===== -->
+<section id="shop" class="sec">
+  <div class="secContainer">
+    <h2 class="secHeading">サロン情報</h2>
+    <div class="topFreeSimple__desc secContent">
+      <p>オーガニックにこだわりながらも、「安い」「早い」「高品質」を実現したヘアカラー専門店です。<br>
+      完全個ブースで、感染症対策を徹底しています。ホワイトニングも出来て歯も白く、素敵な笑顔に。<br><br>
+      MonthColor　東陽町・木場・南砂町エリア</p>
+    </div>
+    <div class="topFreeSimple__btn secContent">
+      <a href="https://monthcolor.pwa.1cs.jp/shop" class="btn_more" target="_blank" rel="noopener">もっとみる</a>
+    </div>
+  </div>
+</section>
+
+<!-- ===== GALLERY ===== -->
+<section id="gallery" class="sec topNews">
+  <div class="secContainer">
+    <h2 class="secHeading">ギャラリー</h2>
+    <ul class="topGallery__portfolio__list secContent">
+      <li class="topGallery__portfolio__item">
+        <img src="https://comingsoon-production-pwa-uploads.s3.ap-northeast-1.amazonaws.com/store/5912/98ae45553552c6516fc3bb1b22a88ed4.jpg" alt="ギャラリー1" loading="lazy">
+      </li>
+      <li class="topGallery__portfolio__item">
+        <img src="https://comingsoon-production-pwa-uploads.s3.ap-northeast-1.amazonaws.com/store/5912/fabca960e2e0896fdca130eb86c61ee4.jpg" alt="ギャラリー2" loading="lazy">
+      </li>
+      <li class="topGallery__portfolio__item">
+        <img src="https://comingsoon-production-pwa-uploads.s3.ap-northeast-1.amazonaws.com/store/5912/488096bce237936ed56684631f2a4829.jpg" alt="ギャラリー3" loading="lazy">
+      </li>
+      <li class="topGallery__portfolio__item">
+        <img src="https://comingsoon-production-pwa-uploads.s3.ap-northeast-1.amazonaws.com/store/5912/2126082c87c801b8f35d5a9563ecfdea.jpg" alt="ギャラリー4" loading="lazy">
+      </li>
+      <li class="topGallery__portfolio__item">
+        <img src="https://comingsoon-production-pwa-uploads.s3.ap-northeast-1.amazonaws.com/store/5912/69cf0f4fb7744f0c4bea15d450be8385.jpg" alt="ギャラリー5" loading="lazy">
+      </li>
+      <li class="topGallery__portfolio__item">
+        <img src="https://comingsoon-production-pwa-uploads.s3.ap-northeast-1.amazonaws.com/store/5912/75a80a4693d618b7904a5407aa9b4844.jpg" alt="ギャラリー6" loading="lazy">
+      </li>
+      <li class="topGallery__portfolio__item">
+        <img src="https://comingsoon-production-pwa-uploads.s3.ap-northeast-1.amazonaws.com/store/5912/2a5591e16cd06b9f5f8ee8d5f06b1671.jpg" alt="ギャラリー7" loading="lazy">
+      </li>
+      <li class="topGallery__portfolio__item">
+        <img src="https://comingsoon-production-pwa-uploads.s3.ap-northeast-1.amazonaws.com/store/5912/e9bfe3815aed7c1ccc1c2fd957620fcc.jpg" alt="ギャラリー8" loading="lazy">
+      </li>
+      <li class="topGallery__portfolio__item">
+        <img src="https://comingsoon-production-pwa-uploads.s3.ap-northeast-1.amazonaws.com/store/5912/ce663461a444453a1a21cdc71ac2af31.jpg" alt="ギャラリー9" loading="lazy">
+      </li>
+    </ul>
+    <div class="topGallery__btn secContent" style="text-align:center;">
+      <a href="https://monthcolor.pwa.1cs.jp/gallery" class="btn_more" target="_blank" rel="noopener">もっとみる</a>
+    </div>
+  </div>
+</section>
+
+<!-- ===== FAQ ===== -->
+<section id="faq" class="sec">
+  <div class="secContainer">
+    <h2 class="secHeading">MonthColorよくある質問</h2>
+    <div class="topFaq__desc secContent">
+      <p>
+        <strong>Q 飛び込みでも大丈夫ですか？</strong><br>
+        A→はい、可能です。しかし状況次第ですぐのご案内ができなかったり、後日のご案内になったりすることもありますので、ご予約をお勧めします。<br><br>
+        <strong>Q クーポンはありますか？</strong><br>
+        A→はい、新規の方へのクーポンをご用意しております。<br><br>
+        <strong>Q トリートメントだけは可能ですか？</strong><br>
+        A→はい、可能です。シャンプー代別途で550円いただきます。<br><br>
+        <strong>Q 次はいつ頃に来たらいいですか？</strong><br>
+        A→悩みが出た時が来店のタイミングです。参考程度に、当店のお客様の来店周期は3週間〜1ヵ月半に1度の方が多いです。<br><br>
+        <strong>Q 白髪染めとファッションカラーはどう違うのですか？</strong><br>
+        A→簡単に言うと、白髪染めは白髪を染める薬で色のバリエーションが少ないです。ファッションカラーは色味が豊富ですが白髪は染まりません。<br><br>
+        <strong>Q 電話予約はできますか？</strong><br>
+        A→はい、可能です。03-6820-5623<br><br>
+        <strong>Q ホワイトニングの際に痛みはありますか？</strong><br>
+        A→体に安全な無機化合物のジェルを使用しており、着色汚れを除去するものなので痛みは一切ございません。<br><br>
+        <strong>Q ホワイトニング後の飲食制限はありますか？</strong><br>
+        A→施術後の飲食制限はありません。
+      </p>
+    </div>
+    <div class="topFreeSimple__btn secContent">
+      <a href="https://monthcolor.pwa.1cs.jp/far" class="btn_more" target="_blank" rel="noopener">もっとみる</a>
+    </div>
+  </div>
+</section>
+
+<!-- ===== CANCEL POLICY ===== -->
+<section id="cancel" class="sec topNews">
+  <div class="secContainer">
+    <h2 class="secHeading">キャンセルポリシー</h2>
+    <div class="topFreeSimple__desc secContent" style="font-size:14px;">
+      <p>
+        <strong>【ご予約方法】</strong><br>
+        当サロンは予約制となっております。現在下記方法にて承っております。<br>
+        ・ホットペッパービューティー ・MonthColorホームページ ・お電話 ・ご来店時でのご予約<br><br>
+        <strong>【キャンセル可能期間】</strong><br>
+        ご予約のキャンセルやご変更は、前々営業日の18:00までにご連絡をお願いいたします。<br><br>
+        <strong>【キャンセル料金】</strong><br>
+        前日キャンセル：施術料金の30%<br>
+        当日キャンセル：施術料金の50%<br>
+        ご連絡なしのキャンセル：施術料金の100%<br><br>
+        <strong>【ご来店の遅れについて】</strong><br>
+        ご予約時間を過ぎてのご来店は、その後のご予約の都合上、キャンセルとさせていただく場合がございます。
+      </p>
+    </div>
+    <div class="topFreeSimple__btn secContent">
+      <a href="https://monthcolor.pwa.1cs.jp/cancelpolicy" class="btn_more" target="_blank" rel="noopener">もっとみる</a>
+    </div>
+  </div>
+</section>
+
+<!-- ===== SNS ICONS ===== -->
+<section class="snsIcons">
+  <ul class="snsIcons__list">
+    <li>
+      <a href="https://www.instagram.com/month_color/" target="_blank" rel="noopener" class="snsIcons__link ig" aria-label="Instagram">
+        <svg viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 1 0 0 12.324 6.162 6.162 0 0 0 0-12.324zM12 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm6.406-11.845a1.44 1.44 0 1 0 0 2.881 1.44 1.44 0 0 0 0-2.881z"/></svg>
+      </a>
+    </li>
+    <li>
+      <a href="https://twitter.com/MonthColorT" target="_blank" rel="noopener" class="snsIcons__link tw" aria-label="X(Twitter)">
+        <svg viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.73-8.835L1.254 2.25H8.08l4.256 5.634L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77z"/></svg>
+      </a>
+    </li>
+    <li>
+      <a href="https://www.facebook.com/profile.php?id=100076942534760" target="_blank" rel="noopener" class="snsIcons__link fb" aria-label="Facebook">
+        <svg viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+      </a>
+    </li>
+  </ul>
+</section>
+
+<!-- ===== FOOTER INFO ===== -->
+<section class="homefooter">
+  <div class="homefooter_container">
+    <p class="homefooter_footerTitle">MonthColor(マンスカラー)白髪染め</p>
+    <div style="display:flex; gap:32px; flex-wrap:wrap;">
+      <div style="flex:1; min-width:260px;">
+        <table class="homefooter__infoTable">
+          <tr><td class="__title">Tel</td><td class="__text"><a href="tel:03-6820-5623">03-6820-5623</a></td></tr>
+          <tr><td class="__title">営業時間</td><td class="__text">9:00-19:30（18:30受付終了）</td></tr>
+          <tr><td class="__title">定休日</td><td class="__text">年末・年始</td></tr>
+          <tr><td class="__title">住所</td><td class="__text">〒135-0016 東京都江東区東陽4-1-2 大朋ビル4F</td></tr>
+          <tr><td class="__title">アクセス</td><td class="__text">東京メトロ東西線【東陽町駅】2番出口徒歩10秒<br>ファミリーマートの上4階</td></tr>
+        </table>
+      </div>
+      <div class="homefooter__map" style="flex:1; min-width:260px;">
+        <iframe loading="lazy" src="https://www.google.com/maps?q=35.6693024,139.8166287&output=embed&t=m&z=16" allowfullscreen title="MonthColor地図"></iframe>
       </div>
     </div>
   </div>
+</section>
 
-  <!-- アクセス -->
-  <div class="section" id="access">
-    <div class="section__title">Access</div>
-    <div class="access-map">
-      <!-- Google Maps埋め込み用 (住所確定後に差し替え) -->
-      <span>📍 地図を表示</span>
-    </div>
-    <div class="access-info">
-      <dl>
-        <dt>住所</dt>
-        <dd>〒150-0000<br>東京都渋谷区〇〇 X-X-X</dd>
-        <dt>電話</dt>
-        <dd><a href="tel:0X0-XXXX-XXXX" style="color:#07f;font-weight:700">0X0-XXXX-XXXX</a></dd>
-        <dt>営業時間</dt>
-        <dd>10:00〜20:00（最終受付 19:00）</dd>
-        <dt>定休日</dt>
-        <dd>不定休</dd>
-        <dt>アクセス</dt>
-        <dd>〇〇駅 徒歩X分</dd>
-      </dl>
+<!-- ===== FOOTER NAV ===== -->
+<footer class="footer">
+  <div class="footer_container">
+    <ul class="footer_nav__list">
+      <li><span class="footer_nav__link">ニュース</span></li>
+      <li><span class="footer_nav__link">MonthColorの想い</span></li>
+      <li><span class="footer_nav__link">マンスカラー：ご利用の流れ</span></li>
+      <li><span class="footer_nav__link">メニュー</span></li>
+      <li><span class="footer_nav__link">サロン情報</span></li>
+      <li><span class="footer_nav__link">ギャラリー</span></li>
+      <li><span class="footer_nav__link">MonthColorよくある質問</span></li>
+      <li><span class="footer_nav__link">キャンセルポリシー</span></li>
+    </ul>
+    <div class="footer_copyright">
+      <p>©MONTH COLOR</p>
     </div>
   </div>
+</footer>
 
-  <!-- フッター -->
-  <footer class="footer">
-    <div class="footer__name">MONTH COLOR</div>
-    <div class="footer__copy">&copy; 2026 MONTH COLOR. All rights reserved.</div>
-  </footer>
-
-  <!-- 固定予約ボタン -->
-  <div class="reserve-bar">
-    <a class="reserve-btn" href="/reserve">ネット予約はこちら</a>
-  </div>
-
+<!-- ===== MOBILE BOTTOM BUTTONS ===== -->
+<div class="mobileAction">
+  <a href="tel:03-6820-5623" class="mobileAction__access">Access</a>
+  <a href="/reservation.html" class="mobileAction__book">予約する</a>
 </div>
+
+<script>
+  // hamburger menu toggle
+  const btn = document.getElementById('hamburgerBtn');
+  const nav = document.getElementById('mobileNav');
+  btn.addEventListener('click', () => nav.classList.toggle('open'));
+  // close on link click
+  nav.querySelectorAll('a').forEach(a => a.addEventListener('click', () => nav.classList.remove('open')));
+</script>
+
 </body>
 </html>
