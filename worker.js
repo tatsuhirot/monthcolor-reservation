@@ -92,7 +92,8 @@ async function runSyncSlots() {
     lastSlotsSync = Date.now();
     console.log(`[${now()}] ✅ 空き枠同期完了`);
   } else {
-    console.error(`[${now()}] ❌ 空き枠同期失敗 (exit: ${result.status})`);
+    console.error(`[${now()}] ❌ 空き枠同期失敗 (exit: ${result.status})、15分後に再試行`);
+    lastSlotsSync = Date.now() - SLOTS_SYNC_INTERVAL + (15 * 60_000); // 15分後に再試行
   }
 }
 
