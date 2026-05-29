@@ -196,15 +196,16 @@ async function registerInSalonBoard({ date, time, name, menuName }) {
 
     await page.goto(
       `https://salonboard.com/CLP/bt/schedule/salonSchedule/?date=${dateKey}`,
-      { waitUntil: 'networkidle' }
+      { waitUntil: 'domcontentloaded' }
     );
-    await page.waitForTimeout(1500);
+    await page.waitForTimeout(2000);
 
     const timeKey = time.replace(':', '');
     // スタイリストIDを限定せず、その時間帯に空いている誰でも選ぶ（6枠対応）
     const slot = await page.$(`[id^="empty_time_sid_fix_${dateKey}_${timeKey}_"]`);
     if (!slot) throw new Error(`空き枠が見つかりません（${date} ${time}）`);
 
+    await slot.scrollIntoViewIfNeeded();
     await slot.click();
     await page.waitForTimeout(1500);
 
@@ -215,12 +216,12 @@ async function registerInSalonBoard({ date, time, name, menuName }) {
         newBtn.click(),
       ]);
       if (popup) {
-        await popup.waitForLoadState('networkidle');
+        await popup.waitForLoadState('domcontentloaded');
         await fillForm(popup, { name, menuName });
         await context.storageState({ path: statePath });
         return;
       }
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
     }
 
     await fillForm(page, { name, menuName });
