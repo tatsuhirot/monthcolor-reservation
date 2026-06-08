@@ -2,10 +2,8 @@ name: HPB Calendar Automation
 
 on:
   schedule:
-    # SalonBoard 空き枠同期: 毎日 09:00 JST (00:00 UTC)
-    - cron: '0 0 * * *'
-    # SalonBoard 空き枠同期: 毎日 13:00 JST (04:00 UTC)
-    - cron: '0 4 * * *'
+    # 毎時00分に実行 (JST = UTC+9)
+    - cron: '0 * * * *'
   workflow_dispatch:   # GitHub UI から手動実行可能
 
 jobs:
@@ -30,22 +28,25 @@ jobs:
       - name: Install Playwright (Firefox only)
         run: npx playwright install firefox --with-deps
 
+      - name: Restore SalonBoard session
+        run: |
+          mkdir -p .state
+          echo "${{ secrets.SALONBOARD_SESSION }}" | base64 -d > .state/salonboard.json
+          echo "✅ session restored"
+
       - name: Process reservation queue
         env:
           SALONBOARD_LOGIN_ID:   ${{ secrets.SALONBOARD_LOGIN_ID }}
           SALONBOARD_PASSWORD:   ${{ secrets.SALONBOARD_PASSWORD }}
           BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
+          PROXY_SERVER:          ${{ secrets.PROXY_SERVER }}
+          PROXY_USERNAME:        ${{ secrets.PROXY_USERNAME }}
+          PROXY_PASSWORD:        ${{ secrets.PROXY_PASSWORD }}
           PLAYWRIGHT_HEADLESS:   'true'
         run: node worker.js
 
-  # ── Job 2: SalonBoard 空き枠同期（1日2回） ───────────────────────────
+  # ── Job 2: SalonBoard 空き枠同期（毎時） ───────────────────────────
   sync-slots:
-    # 00:00 UTC (09:00 JST) か 04:00 UTC (13:00 JST) のスケジュール時のみ実行
-    # 10分ごとのトリガーでは実行しない
-    if: |
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'schedule' &&
-       (startsWith(github.event.schedule, '0 0') || startsWith(github.event.schedule, '0 4')))
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -65,9 +66,19 @@ jobs:
       - name: Install Playwright (Firefox only)
         run: npx playwright install firefox --with-deps
 
+      - name: Restore SalonBoard session
+        run: |
+          mkdir -p .state
+          echo "${{ secrets.SALONBOARD_SESSION }}" | base64 -d > .state/salonboard.json
+          echo "✅ session restored"
+
       - name: Sync SalonBoard slots
         env:
           SALONBOARD_LOGIN_ID:   ${{ secrets.SALONBOARD_LOGIN_ID }}
           SALONBOARD_PASSWORD:   ${{ secrets.SALONBOARD_PASSWORD }}
           BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
+          PROXY_SERVER:          ${{ secrets.PROXY_SERVER }}
+          PROXY_USERNAME:        ${{ secrets.PROXY_USERNAME }}
+          PROXY_PASSWORD:        ${{ secrets.PROXY_PASSWORD }}
+          PLAYWRIGHT_HEADLESS:   'true'
         run: node sync_slots.js
