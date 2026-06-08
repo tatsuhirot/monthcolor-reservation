@@ -203,31 +203,11 @@ async function syncSlots() {
   const monthCount = parseInt(process.argv.find(a => a === '--months') ? process.argv[process.argv.indexOf('--months') + 1] : '2');
 
   const headless = process.env.PLAYWRIGHT_HEADLESS !== 'false';
-  const proxyConfig = process.env.PROXY_SERVER ? {
-    server: process.env.PROXY_SERVER,
-    username: process.env.PROXY_USERNAME,
-    password: process.env.PROXY_PASSWORD,
-  } : undefined;
-  const browser = await firefox.launch({ headless, proxy: proxyConfig });
-  const humanContext = {
-    proxy: proxyConfig,
-    userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1',
-    viewport: { width: 390, height: 844 },
-    locale: 'ja-JP',
-    timezoneId: 'Asia/Tokyo',
-    extraHTTPHeaders: { 'Accept-Language': 'ja-JP,ja;q=0.9' },
-  };
+  const browser = await firefox.launch({ headless });
   const context = fs.existsSync(statePath)
-    ? await browser.newContext({ ...humanContext, storageState: statePath })
-    : await browser.newContext(humanContext);
+    ? await browser.newContext({ storageState: statePath })
+    : await browser.newContext();
   const page = await context.newPage();
-  // Akamaiのwebdriver検出を回避
-  await page.addInitScript(() => {
-    Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-    Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
-    Object.defineProperty(navigator, 'languages', { get: () => ['ja-JP', 'ja'] });
-    window.chrome = { runtime: {} };
-  });
 
   try {
     // ── ログイン ────────────────────────────────────────────────
@@ -253,7 +233,7 @@ async function syncSlots() {
       console.log('🖱  ログインボタンをクリック');
 
       // SP版はAJAX認証 → クリック後にログインページから遷移するまで待つ
-      await loginBtn.click({ noWaitAfter: true, timeout: 10000 });
+      await loginBtn.click();
 
       // ログイン成功を確認: URLがログインページから変わるか、セッションCookieが設定されるまで最大30秒待つ
       let loginOk = false;
@@ -276,62 +256,25 @@ async function syncSlots() {
       }
       console.log('✅ ログイン成功を確認');
 
-      // スケジュールページへ移動
-      // ① まずトップページのリンクをクリックして遷移（Akamaiの直接URLブロック回避）
-      // ② クリックが見つからない場合のみ直接URL遷移にフォールバック
+      // スケジュールページへ移動（CLP=PC版 → CLS=SP版の順でフォールバック）
       let afterUrl = '';
+      const scheduleUrls = [
+        'https://salonboard.com/CLP/bt/schedule/salonSchedule/',
+        'https://salonboard.com/CLS/bt/schedule/salonSchedule/',
+      ];
       let scheduleOk = false;
-
-      // トップページからスケジュールリンクをクリックして遷移
-      try {
-        console.log('📅 トップページからスケジュールリンクを探してクリック...');
-        await page.waitForTimeout(2000);
-        // ナビゲーションリンク候補（テキスト・href・aria-label等）
-        const scheduleLink = page.locator([
-          'a[href*="schedule"]',
-          'a[href*="Schedule"]',
-          'a:has-text("予約")',
-          'a:has-text("スケジュール")',
-          'a:has-text("カレンダー")',
-        ].join(', ')).first();
-
-        if (await scheduleLink.count() > 0) {
-          await scheduleLink.click();
-          await page.waitForTimeout(4000);
+      for (const url of scheduleUrls) {
+        try {
+          console.log('📅 スケジュールページへ移動:', url);
+          await page.goto(url, { waitUntil: 'commit', timeout: 60_000 });
+          await page.waitForTimeout(3000); // コンテンツ読み込み待ち
           afterUrl = page.url();
-          if (!afterUrl.includes('/login')) {
-            scheduleOk = true;
-            console.log('✅ クリックでスケジュールページへ遷移:', afterUrl);
-          } else {
-            console.warn('⚠️  クリック後にログインページへリダイレクト');
-          }
-        } else {
-          console.warn('⚠️  スケジュールリンクが見つからなかった');
-        }
-      } catch (e) {
-        console.warn('⚠️  クリック遷移失敗:', e.message);
-      }
-
-      // フォールバック: 直接URLで試みる
-      if (!scheduleOk) {
-        const scheduleUrls = [
-          'https://salonboard.com/CLP/bt/schedule/salonSchedule/',
-          'https://salonboard.com/CLS/bt/schedule/salonSchedule/',
-        ];
-        for (const url of scheduleUrls) {
-          try {
-            console.log('📅 直接URLでスケジュールページへ移動:', url);
-            await page.goto(url, { waitUntil: 'commit', timeout: 60_000 });
-            await page.waitForTimeout(3000);
-            afterUrl = page.url();
-            if (!afterUrl.includes('/login')) { scheduleOk = true; break; }
-            console.warn('⚠️  ログインページにリダイレクトされた。次のURLを試す...');
-          } catch (e) {
-            console.warn(`⚠️  ${url} タイムアウト。次のURLを試す...`);
-          }
+          if (!afterUrl.includes('/login')) { scheduleOk = true; break; }
+          console.warn('⚠️  ログインページにリダイレクトされた。次のURLを試す...');
+        } catch (e) {
+          console.warn(`⚠️  ${url} タイムアウト。次のURLを試す...`);
         }
       }
-
       if (!scheduleOk) {
         await page.screenshot({ path: path.join(tmpDir, 'salonboard-login-fail.png'), fullPage: true }).catch(() => null);
         if (fs.existsSync(statePath)) { fs.rmSync(statePath, { force: true }); }
