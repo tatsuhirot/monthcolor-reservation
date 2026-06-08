@@ -16,6 +16,7 @@
 require('dotenv').config();
 const storage = require('./lib/storage');
 const { firefox } = require('playwright');
+const { launchHumanBrowser, humanClick, humanType, randomDelay } = require('./lib/human-browser');
 const { spawnSync } = require('child_process');
 const fs   = require('fs');
 const path = require('path');
@@ -212,12 +213,7 @@ async function ensureLoggedIn(page, context, dateKey) {
 
 // ── SalonBoard 登録（server.js から移植）──────────────────────────
 async function registerInSalonBoard({ date, time, name, menuName }) {
-  const headless = process.env.PLAYWRIGHT_HEADLESS !== 'false';
-  const browser = await firefox.launch({ headless });
-  const context = fs.existsSync(statePath)
-    ? await browser.newContext({ storageState: statePath })
-    : await browser.newContext();
-  const page = await context.newPage();
+  const { browser, context, page } = await launchHumanBrowser(statePath);
 
   try {
     const dateKey = date.replace(/-/g, '');
@@ -302,12 +298,7 @@ async function fillForm(page, { name, menuName }) {
 
 // ── SalonBoard キャンセル ─────────────────────────────────────────
 async function cancelInSalonBoard({ date, time, name }) {
-  const headless = process.env.PLAYWRIGHT_HEADLESS !== 'false';
-  const browser = await firefox.launch({ headless });
-  const context = fs.existsSync(statePath)
-    ? await browser.newContext({ storageState: statePath })
-    : await browser.newContext();
-  const page = await context.newPage();
+  const { browser, context, page } = await launchHumanBrowser(statePath);
 
   try {
     const dateKey = date.replace(/-/g, '');
