@@ -59,6 +59,25 @@ fs.readdirSync(apiDir).filter(f => f.endsWith('.js')).forEach(file => {
 // ── ヘルスチェック ─────────────────────────────────────────────
 app.get('/health', (_, res) => res.json({ ok: true }));
 
+// ── 手動同期トリガー ───────────────────────────────────────────
+// 自社サイトの管理画面から「今すぐ同期」ボタンで呼び出す
+app.post('/api/trigger-sync', (req, res) => {
+  const secret = process.env.SYNC_TRIGGER_SECRET;
+  if (secret && req.headers['x-sync-secret'] !== secret) {
+    return res.status(401).json({ ok: false, error: '認証エラー' });
+  }
+  const { spawn } = require('child_process');
+  const proc = spawn('node', ['sync_slots.js'], {
+    cwd: __dirname,
+    detached: true,
+    stdio: 'ignore',
+    env: { ...process.env },
+  });
+  proc.unref();
+  console.log(`🔄 手動同期トリガー (pid: ${proc.pid})`);
+  res.json({ ok: true, message: '同期を開始しました', pid: proc.pid });
+});
+
 // ── セッション管理 ─────────────────────────────────────────────
 const stateDir  = path.join(__dirname, '.state');
 const statePath = path.join(stateDir, 'salonboard.json');

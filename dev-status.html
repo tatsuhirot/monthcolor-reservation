@@ -138,6 +138,38 @@
 <h1>📊 hpb-calendar 開発状況</h1>
 <p class="subtitle">monthcolor-reservation — 2026-05-05 現在</p>
 
+<div style="margin:16px 0;padding:16px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;display:flex;align-items:center;gap:12px;">
+  <span style="font-size:14px;color:#0369a1;">🔄 SalonBoard スロット同期（30分ごと自動実行）</span>
+  <button id="syncBtn" onclick="triggerSync()" style="padding:8px 20px;background:#0ea5e9;color:white;border:none;border-radius:6px;cursor:pointer;font-size:14px;font-weight:bold;">
+    今すぐ同期
+  </button>
+  <span id="syncStatus" style="font-size:13px;color:#64748b;"></span>
+</div>
+
+<script>
+async function triggerSync() {
+  const btn = document.getElementById('syncBtn');
+  const status = document.getElementById('syncStatus');
+  btn.disabled = true;
+  btn.textContent = '実行中...';
+  status.textContent = '';
+  try {
+    const res = await fetch('/api/trigger-sync', {
+      method: 'POST',
+      headers: { 'x-sync-secret': '<%SYNC_SECRET%>' }
+    });
+    const data = await res.json();
+    status.textContent = data.ok ? '✅ 同期開始しました（約2分で完了）' : '❌ ' + data.error;
+    status.style.color = data.ok ? '#16a34a' : '#dc2626';
+  } catch(e) {
+    status.textContent = '❌ 接続エラー';
+    status.style.color = '#dc2626';
+  }
+  btn.disabled = false;
+  btn.textContent = '今すぐ同期';
+}
+</script>
+
 <!-- stat bar -->
 <div class="stat-grid">
   <div class="stat-card">
