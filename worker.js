@@ -177,34 +177,26 @@ async function processQueue() {
 }
 
 // ── SalonBoard ログイン共通ヘルパー ──────────────────────────────────
+// ※ VPSからlogin_spを踏むとAkamaiにブロックされるため、
+//    スケジュールページに直接アクセスしてセッション確認する
 async function ensureLoggedIn(page, context, dateKey) {
   try {
-  console.log('   🔐 SalonBoard にアクセス中...');
-  await page.goto('https://salonboard.com/login_sp/', { waitUntil: 'domcontentloaded', timeout: 60_000 });
-
-  const isLoggedIn = await page.$('#jsiSchedule, .scheduleArea, .sideMenuArea, .sp-menu, [class*="schedule"]');
-  if (!isLoggedIn) {
-    const loginId = process.env.SALONBOARD_LOGIN_ID;
-    const loginPw = process.env.SALONBOARD_PASSWORD;
-    if (!loginId || !loginPw) throw new Error('SALONBOARD_LOGIN_ID / SALONBOARD_PASSWORD が .env に未設定です');
-
-    await page.fill('input[name="userId"], input[name="loginId"], input[type="text"]', loginId);
-    await page.fill('input[name="password"], #password, input[type="password"]', loginPw);
-    await page.click('.loginBtnSize, button[type="submit"], input[type="submit"]');
-    await page.waitForTimeout(3000); // AJAX完了を待つ
-
-    // スケジュールページへ移動してセッションが有効か確認
+    console.log('   🔐 SalonBoard スケジュールページにアクセス中...');
     await page.goto(
-      `https://salonboard.com/CLP/bt/schedule/salonSchedule/?date=${dateKey}`,
-      { waitUntil: 'domcontentloaded', timeout: 30_000 }
+      `https://salonboard.com/CLP/bt/schedule/salonSchedule/?pv_date=${dateKey}`,
+      { waitUntil: 'domcontentloaded', timeout: 60_000 }
     );
+
     if (page.url().includes('/login')) {
-      await page.screenshot({ path: path.join(tmpDir, 'salonboard-login-fail-worker.png'), fullPage: true }).catch(() => null);
-      throw new Error(`SalonBoard login failed`);
+      // セッション切れ → VPSからはログイン不可なのでエラーにする
+      await page.screenshot({ path: path.join(tmpDir, 'salonboard-session-expired.png'), fullPage: true }).catch(() => null);
+      throw new Error(
+        'SalonBoardのセッションが切れています。\n' +
+        'ローカルPCで「node update-session.js」を実行してセッションを更新してください。'
+      );
     }
-    await context.storageState({ path: statePath });
-    console.log('   ✅ ログイン成功 →', page.url());
-  }
+
+    console.log('   ✅ セッション有効 →', page.url());
   } catch (err) {
     await deleteStorageState();
     throw err;
@@ -220,7 +212,7 @@ async function registerInSalonBoard({ date, time, name, menuName }) {
     await ensureLoggedIn(page, context, dateKey);
 
     await page.goto(
-      `https://salonboard.com/CLP/bt/schedule/salonSchedule/?date=${dateKey}`,
+      `https://salonboard.com/CLP/bt/schedule/salonSchedule/?pv_date=${dateKey}`,
       { waitUntil: 'domcontentloaded' }
     );
     await page.waitForTimeout(2000);
@@ -306,7 +298,7 @@ async function cancelInSalonBoard({ date, time, name }) {
 
     // スケジュールページで該当予約ブロックを探す
     await page.goto(
-      `https://salonboard.com/CLP/bt/schedule/salonSchedule/?date=${dateKey}`,
+      `https://salonboard.com/CLP/bt/schedule/salonSchedule/?pv_date=${dateKey}`,
       { waitUntil: 'networkidle' }
     );
     await page.waitForTimeout(1500);
