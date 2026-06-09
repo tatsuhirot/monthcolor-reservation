@@ -2,30 +2,34 @@
  * update-session.js — SalonBoardセッションを手動更新してVPSに転送
  *
  * ★ 週1回ローカルPCで実行してください ★
+ *   （どのPCからでもOK。SSH不要）
  *
  * 使い方:
  *   node update-session.js
  *
- * ※ このファイルは編集しないでください
+ * 必要な .env 設定:
+ *   SALONBOARD_LOGIN_ID=xxxxx
+ *   SALONBOARD_PASSWORD=xxxxx
+ *   VPS_URL=https://your-vps-domain.com   （例: https://monthcolor.com）
+ *   SYNC_TRIGGER_SECRET=hpb-sync-2026
  */
 
 require('dotenv').config();
 const { firefox } = require('playwright');
-const { execSync } = require('child_process');
 const path = require('path');
-const fs = require('fs');
+const fs   = require('fs');
 
 const stateDir  = path.join(__dirname, '.state');
 const statePath = path.join(stateDir, 'salonboard.json');
-const VPS_IP    = '160.251.171.167';
-const VPS_KEY   = 'C:/Users/tatsu/.ssh/key-2026-05-20-06-01.pem';
-const VPS_DEST  = `root@${VPS_IP}:~/hpb-calendar/.state/salonboard.json`;
+
+const VPS_URL = process.env.VPS_URL || 'http://160.251.171.167:3001';
+const SECRET  = process.env.SYNC_TRIGGER_SECRET;
 
 async function main() {
   if (!fs.existsSync(stateDir)) fs.mkdirSync(stateDir, { recursive: true });
 
+  // ── ① ブラウザでSalonBoardにログイン ──────────────────────────
   console.log('🌐 SalonBoardにログイン中... (ブラウザが開きます)');
-
   const browser = await firefox.launch({ headless: false });
   const context = await browser.newContext();
   const page    = await context.newPage();
@@ -42,8 +46,22 @@ async function main() {
   await browser.close();
   console.log('💾 セッション保存完了');
 
-  console.log('☁️  VPSに転送中...');
-  execSync(`scp -i "${VPS_KEY}" "${statePath}" "${VPS_DEST}"`, { stdio: 'inherit' });
+  // ── ② VPSにHTTP POSTでアップロード ───────────────────────────
+  console.log(`☁️  VPSにアップロード中... (${VPS_URL})`);
+  const session = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
+
+  const res = await fetch(`${VPS_URL}/api/upload-session`, {
+    method:  'POST',
+    headers: {
+      'Content-Type':   'application/json',
+      'x-sync-secret': SECRET || '',
+    },
+    body: JSON.stringify({ session }),
+  });
+
+  const json = await res.json();
+  if (!json.ok) throw new Error(json.error || 'アップロード失敗');
+
   console.log('✅ 完了！ 次回更新は1週間後でOKです。');
 }
 

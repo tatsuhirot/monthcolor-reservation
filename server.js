@@ -59,6 +59,23 @@ fs.readdirSync(apiDir).filter(f => f.endsWith('.js')).forEach(file => {
 // ── ヘルスチェック ─────────────────────────────────────────────
 app.get('/health', (_, res) => res.json({ ok: true }));
 
+// ── セッションファイルアップロード ─────────────────────────────
+// 任意のPCから node update-session.js で呼び出す（SSH不要）
+app.post('/api/upload-session', (req, res) => {
+  const secret = process.env.SYNC_TRIGGER_SECRET;
+  if (secret && req.headers['x-sync-secret'] !== secret) {
+    return res.status(401).json({ ok: false, error: '認証エラー' });
+  }
+  const { session } = req.body;
+  if (!session || typeof session !== 'object') {
+    return res.status(400).json({ ok: false, error: 'session が不正です' });
+  }
+  if (!fs.existsSync(stateDir)) fs.mkdirSync(stateDir, { recursive: true });
+  fs.writeFileSync(statePath, JSON.stringify(session, null, 2), 'utf-8');
+  console.log('📤 セッションファイル更新完了（リモートアップロード）');
+  res.json({ ok: true, message: 'セッション更新完了' });
+});
+
 // ── 手動同期トリガー ───────────────────────────────────────────
 // 自社サイトの管理画面から「今すぐ同期」ボタンで呼び出す
 app.post('/api/trigger-sync', (req, res) => {
