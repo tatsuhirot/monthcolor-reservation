@@ -63,7 +63,7 @@ app.get('/health', (_, res) => res.json({ ok: true }));
 // 任意のPCから node update-session.js で呼び出す（SSH不要）
 app.post('/api/upload-session', (req, res) => {
   const secret = process.env.SYNC_TRIGGER_SECRET;
-  if (secret && req.headers['x-sync-secret'] !== secret) {
+  if (!secret || req.headers['x-sync-secret'] !== secret) {
     return res.status(401).json({ ok: false, error: '認証エラー' });
   }
   const { session } = req.body;
@@ -80,7 +80,7 @@ app.post('/api/upload-session', (req, res) => {
 // 自社サイトの管理画面から「今すぐ同期」ボタンで呼び出す
 app.post('/api/trigger-sync', (req, res) => {
   const secret = process.env.SYNC_TRIGGER_SECRET;
-  if (secret && req.headers['x-sync-secret'] !== secret) {
+  if (!secret || req.headers['x-sync-secret'] !== secret) {
     return res.status(401).json({ ok: false, error: '認証エラー' });
   }
   const { spawn } = require('child_process');
