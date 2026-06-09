@@ -183,7 +183,7 @@ async function ensureLoggedIn(page, context, dateKey) {
   try {
     console.log('   🔐 SalonBoard スケジュールページにアクセス中...');
     await page.goto(
-      `https://salonboard.com/CLP/bt/schedule/salonSchedule/?pv_date=${dateKey}`,
+      `https://salonboard.com/CLP/bt/schedule/salonSchedule/?date=${dateKey}`,
       { waitUntil: 'domcontentloaded', timeout: 60_000 }
     );
 
@@ -212,7 +212,7 @@ async function registerInSalonBoard({ date, time, name, menuName }) {
     await ensureLoggedIn(page, context, dateKey);
 
     await page.goto(
-      `https://salonboard.com/CLP/bt/schedule/salonSchedule/?pv_date=${dateKey}`,
+      `https://salonboard.com/CLP/bt/schedule/salonSchedule/?date=${dateKey}`,
       { waitUntil: 'domcontentloaded' }
     );
     await page.waitForTimeout(2000);
@@ -298,7 +298,7 @@ async function cancelInSalonBoard({ date, time, name }) {
 
     // スケジュールページで該当予約ブロックを探す
     await page.goto(
-      `https://salonboard.com/CLP/bt/schedule/salonSchedule/?pv_date=${dateKey}`,
+      `https://salonboard.com/CLP/bt/schedule/salonSchedule/?date=${dateKey}`,
       { waitUntil: 'networkidle' }
     );
     await page.waitForTimeout(1500);
