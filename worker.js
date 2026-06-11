@@ -176,18 +176,47 @@ async function processQueue() {
   }
 }
 
+// ── goto リトライヘルパー ─────────────────────────────────────────
+// Akamaiの間欠スロットリングでタイムアウトすることがあるため、
+// 待機時間を延ばしながら最大 retries 回リトライする
+async function gotoWithRetry(page, url, { retries = 3, waitMs = 30_000 } = {}) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 90_000 });
+      return;
+    } catch (e) {
+      if (i === retries - 1) throw e;
+      const delay = waitMs * (i + 1); // 30s → 60s → 90s
+      console.log(`   ⏳ goto失敗(${i + 1}/${retries}): ${e.message.split('\n')[0]} → ${delay / 1000}秒後にリトライ`);
+      await sleep(delay);
+    }
+  }
+}
+
 // ── SalonBoard ログイン共通ヘルパー ──────────────────────────────────
 // ※ VPSからlogin_spを踏むとAkamaiにブロックされるため、
 //    スケジュールページに直接アクセスしてセッション確認する
 async function ensureLoggedIn(page, context, dateKey) {
   try {
     console.log('   🔐 SalonBoard スケジュールページにアクセス中...');
-    await page.goto(
-      `https://salonboard.com/CLP/bt/schedule/salonSchedule/?date=${dateKey}`,
-      { waitUntil: 'domcontentloaded', timeout: 60_000 }
-    );
+    const url = `https://salonboard.com/CLP/bt/schedule/salonSchedule/?date=${dateKey}`;
+    await gotoWithRetry(page, url);
 
-    if (page.url().includes('/login')) {
+    // セッション切れの判定:
+    //  ① /login へリダイレクトされるケース
+    //  ② リダイレクトされず同URLで「SALON BOARD : エラー」ページが返るケース
+    //     （本文: 「一定時間操作されなかったため、ログインの有効期限が切れました。」）
+    //  URLしか見ないとエラーページを「有効」と誤判定し、後続で
+    //  「空き枠が見つかりません」等の紛らわしいエラーになるため、内容も検査する。
+    const expired = await page.evaluate(() => {
+      const title = document.title || '';
+      const body = document.body ? document.body.innerText : '';
+      return title.includes('エラー') ||
+        body.includes('ログインの有効期限が切れ') ||
+        body.includes('再度ログインしなおして');
+    }).catch(() => false);
+
+    if (page.url().includes('/login') || expired) {
       // セッション切れ → VPSからはログイン不可なのでエラーにする
       await page.screenshot({ path: path.join(tmpDir, 'salonboard-session-expired.png'), fullPage: true }).catch(() => null);
       throw new Error(
@@ -198,94 +227,132 @@ async function ensureLoggedIn(page, context, dateKey) {
 
     console.log('   ✅ セッション有効 →', page.url());
   } catch (err) {
-    await deleteStorageState();
+    if (err.message.includes('セッションが切れています')) {
+      await deleteStorageState();
+    }
     throw err;
   }
 }
 
 // ── SalonBoard 登録（server.js から移植）──────────────────────────
-async function registerInSalonBoard({ date, time, name, menuName }) {
+async function registerInSalonBoard({ date, time, name, menuName, nameKana }) {
   const { browser, context, page } = await launchHumanBrowser(statePath);
 
   try {
     const dateKey = date.replace(/-/g, '');
+    // ensureLoggedIn が目的の日付ページまで遷移済みなので再gotoは不要
     await ensureLoggedIn(page, context, dateKey);
-
-    await page.goto(
-      `https://salonboard.com/CLP/bt/schedule/salonSchedule/?date=${dateKey}`,
-      { waitUntil: 'domcontentloaded' }
-    );
     await page.waitForTimeout(2000);
 
     const timeKey = time.replace(':', '');
     // スタイリストIDを限定せず、その時間帯に空いている誰でも選ぶ（6枠対応）
-    const slot = await page.$(`[id^="empty_time_sid_fix_${dateKey}_${timeKey}_"]`);
-    if (!slot) throw new Error(`空き枠が見つかりません（${date} ${time}）`);
+    const targetId = await page.evaluate(({ dateKey, timeKey }) => {
+      const el = document.querySelector(`[id^="empty_time_sid_fix_${dateKey}_${timeKey}_"]`);
+      return el ? el.id.replace('empty_time_sid_fix_', '') : null;
+    }, { dateKey, timeKey });
+    if (!targetId) throw new Error(`空き枠が見つかりません（${date} ${time}）`);
 
-    await slot.scrollIntoViewIfNeeded();
-    await slot.click({ force: true, timeout: 5000 }).catch(async () => {
-      await page.evaluate(el => el.click(), slot).catch(() => {});
-    });
-    await page.waitForTimeout(1500);
-
-    const newBtn = await page.$('[href*="reserveInput"], .newReserveBtn, a:has-text("新規予約")');
-    if (newBtn) {
-      const [popup] = await Promise.all([
-        context.waitForEvent('page', { timeout: 3000 }).catch(() => null),
-        newBtn.click(),
-      ]);
-      if (popup) {
-        await popup.waitForLoadState('domcontentloaded');
-        await fillForm(popup, { name, menuName });
-        await context.storageState({ path: statePath });
-        return;
-      }
-      await page.waitForLoadState('domcontentloaded');
+    // 登録フォームへGET直アクセス（クリックハンドラの遷移先と同じ）
+    const stylistId = targetId.split('_')[2];
+    console.log(`   📌 空き枠: ${targetId} → 登録フォームへ遷移`);
+    await gotoWithRetry(
+      page,
+      `https://salonboard.com/CLP/bt/reserve/ext/extReserveRegist/?date=${dateKey}&time=${timeKey}&stylistId=${stylistId}`
+    );
+    await page.waitForTimeout(2000);
+    if (!page.url().includes('extReserveRegist')) {
+      throw new Error(`登録フォームに遷移できませんでした → ${page.url()}`);
     }
 
-    await fillForm(page, { name, menuName });
+    await fillForm(page, { name, menuName, nameKana });
     await context.storageState({ path: statePath });
 
   } catch (err) {
-    await deleteStorageState();
+    // セッション切れの場合のみstorageStateを削除（その他のエラーで消すと
+    // 手動取得したCookieが失われ復旧が大変になる）
+    if (err.message.includes('セッションが切れています')) {
+      await deleteStorageState();
+    }
     throw err;
   } finally {
     await browser.close();
   }
 }
 
-async function fillForm(page, { name, menuName }) {
-  const nameField = await page.$(
-    'input[name*="customerName"], input[id*="customerName"], input[placeholder*="お客様"]'
-  );
-  if (nameField) {
-    await nameField.fill(name);
-    console.log(`   ✏️  顧客名: ${name}`);
-  }
+// ひらがな→カタカナ変換
+function toKatakana(str) {
+  return str.replace(/[ぁ-ゖ]/g, ch => String.fromCharCode(ch.charCodeAt(0) + 0x60));
+}
+
+// 予約新規登録フォーム（/CLP/bt/reserve/ext/extReserveRegist/）への入力
+async function fillForm(page, { name, menuName, nameKana }) {
+  // 氏名を「姓 名」に分割（スペースがなければ姓のみ）
+  const parts = (name || '').trim().split(/[\s　]+/);
+  const sei = parts[0] || '';
+  const mei = parts.slice(1).join(' ') || '';
+
+  // カナ（必須）: nameKana優先 / なければnameをカタカナ変換して使用
+  const kanaParts = (nameKana ? nameKana.trim() : toKatakana(name || '')).split(/[\s　]+/);
+  const seiKana = kanaParts[0] || '';
+  const meiKana = kanaParts.slice(1).join('') || '';
+
+  await page.fill('#nmSeiKana', seiKana);
+  if (meiKana) await page.fill('#nmMeiKana', meiKana);
+  await page.fill('#nmSei', sei);
+  if (mei) await page.fill('#nmMei', mei);
+  console.log(`   ✏️  氏名: ${sei} ${mei} (${seiKana} ${meiKana})`);
 
   if (menuName) {
-    const menuSel = await page.$('select[name*="menu"], select[id*="menu"]');
-    if (menuSel) {
-      const options = await menuSel.$$('option');
-      for (const opt of options) {
-        const text = await opt.textContent();
-        if (text.includes(menuName)) {
-          await menuSel.selectOption({ label: text.trim() });
-          console.log(`   ✏️  メニュー: ${text.trim()}`);
-          break;
+    // メニューカテゴリは選ばずメニュー一覧から直接選択を試みる
+    const selected = await page.evaluate((mn) => {
+      const sels = [document.querySelector('#menuIdList'), document.querySelector('select[name="setmenuId"]')];
+      for (const sel of sels) {
+        if (!sel) continue;
+        for (const opt of sel.options) {
+          if (opt.textContent.includes(mn)) {
+            sel.value = opt.value;
+            sel.dispatchEvent(new Event('change', { bubbles: true }));
+            return opt.textContent.trim();
+          }
         }
       }
+      return null;
+    }, menuName);
+    if (selected) console.log(`   ✏️  メニュー: ${selected}`);
+    else console.log(`   ⚠️  メニュー「${menuName}」が見つからずスキップ`);
+  }
+
+  // 登録ボタン #regist → ネイティブconfirm「予約を登録します。よろしいですか？」を自動承諾
+  page.on('dialog', d => d.accept().catch(() => {}));
+  await page.locator('#regist').click({ noWaitAfter: true });
+  console.log('   📨 登録ボタンをクリック');
+
+  // doComplete遷移 or 警告モーダル（受付可能数超過など）を最大60秒監視
+  let done = false;
+  for (let i = 0; i < 30; i++) {
+    await page.waitForTimeout(2000);
+    const url = page.url();
+    // HTML警告モーダルが出たらOKで続行
+    const okBtn = page.locator('.mod_popup a:has-text("OK"), a:has-text("OK"), input[value="OK"]').first();
+    const okVisible = await okBtn.isVisible().catch(() => false);
+    if (okVisible) {
+      console.log('   ⚠️  警告モーダル → OK で続行');
+      await okBtn.click({ noWaitAfter: true }).catch(() => {});
+      await page.waitForTimeout(3000);
+      continue;
     }
+    if (url.includes('doComplete')) { done = true; break; }
+    if (url.startsWith('chrome-error')) break; // 接続リセット
   }
 
-  const confirmBtn = await page.$('button:has-text("確認"), input[value*="確認"]');
-  if (confirmBtn) { await confirmBtn.click(); await page.waitForTimeout(1000); }
-
-  const submitBtn = await page.$('button:has-text("登録"), input[value*="登録"]');
-  if (submitBtn) {
-    await submitBtn.click();
-    await page.waitForURL(/reserveComplete|reserveFinish|reserveDetail/, { timeout: 30_000 });
+  if (!done) {
+    const errs = await page.$$eval('.error, .err, [class*="error"]', els =>
+      els.map(e => e.textContent.trim()).filter(Boolean).slice(0, 5)
+    ).catch(() => []);
+    await page.screenshot({ path: path.join(tmpDir, 'salonboard-register-error.png'), fullPage: true }).catch(() => null);
+    throw new Error(`登録が完了しませんでした（URL: ${page.url()}）${errs.length ? ' エラー: ' + errs.join(' / ') : ''}`);
   }
+  console.log(`   ✅ 登録完了 → ${page.url()}`);
 }
 
 // ── SalonBoard キャンセル ─────────────────────────────────────────
