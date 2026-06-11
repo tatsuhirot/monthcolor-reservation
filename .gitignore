@@ -7,5 +7,10 @@ emails/
 state/
 .state/
 .env
+.env.vercel
 
 .vercel
+
+memo.txt
+cookies_raw.json
+input.txt
