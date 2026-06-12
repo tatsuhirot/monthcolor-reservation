@@ -264,7 +264,19 @@ async function registerInSalonBoard({ date, time, name, menuName, nameKana }) {
       throw new Error(`登録フォームに遷移できませんでした → ${page.url()}`);
     }
 
-    await fillForm(page, { name, menuName, nameKana });
+    try {
+      await fillForm(page, { name, menuName, nameKana });
+    } catch (err) {
+      // 登録POSTがAkamaiにリセットされても、POST自体はサーバーに届いて
+      // 登録済みのことがある（2026-06-12実証: ERR_CONNECTION_RESETでも
+      // スケジュールページに「テスト タロウ 様」が登録されていた）。
+      // 失敗扱いにする前にスケジュールページで実登録を確認する
+      if (!err.message.includes('登録が完了しませんでした')) throw err;
+      console.log('   🔍 完了画面に到達できず → スケジュールページで実登録を確認中...');
+      const registered = await verifyRegistered(page, { dateKey, name });
+      if (!registered) throw err;
+      console.log('   ✅ スケジュールページで登録を確認 → 成功扱い');
+    }
     await context.storageState({ path: statePath });
 
   } catch (err) {
@@ -276,6 +288,39 @@ async function registerInSalonBoard({ date, time, name, menuName, nameKana }) {
     throw err;
   } finally {
     await browser.close();
+  }
+}
+
+// メニュー一覧（#menuIdList / setmenuId）から部分一致で選択
+async function trySelectMenu(page, menuName) {
+  return page.evaluate((mn) => {
+    const sels = [document.querySelector('#menuIdList'), document.querySelector('select[name="setmenuId"]')];
+    for (const sel of sels) {
+      if (!sel) continue;
+      for (const opt of sel.options) {
+        if (opt.textContent.includes(mn)) {
+          sel.value = opt.value;
+          sel.dispatchEvent(new Event('change', { bubbles: true }));
+          return opt.textContent.trim();
+        }
+      }
+    }
+    return null;
+  }, menuName);
+}
+
+// 完了画面に到達できなかった場合の実登録確認
+// （スケジュールページに「姓 名 様」が表示されているかで判定）
+async function verifyRegistered(page, { dateKey, name }) {
+  try {
+    await gotoWithRetry(page, `https://salonboard.com/CLP/bt/schedule/salonSchedule/?date=${dateKey}`);
+    const parts = (name || '').trim().split(/[\s　]+/).filter(Boolean);
+    return await page.evaluate((parts) => {
+      const lines = (document.body.innerText || '').split('\n');
+      return lines.some(l => parts.every(p => l.includes(p)));
+    }, parts);
+  } catch {
+    return false; // 確認自体に失敗した場合は従来どおり失敗扱い
   }
 }
 
@@ -303,21 +348,26 @@ async function fillForm(page, { name, menuName, nameKana }) {
   console.log(`   ✏️  氏名: ${sei} ${mei} (${seiKana} ${meiKana})`);
 
   if (menuName) {
-    // メニューカテゴリは選ばずメニュー一覧から直接選択を試みる
-    const selected = await page.evaluate((mn) => {
-      const sels = [document.querySelector('#menuIdList'), document.querySelector('select[name="setmenuId"]')];
-      for (const sel of sels) {
-        if (!sel) continue;
-        for (const opt of sel.options) {
-          if (opt.textContent.includes(mn)) {
-            sel.value = opt.value;
-            sel.dispatchEvent(new Event('change', { bubbles: true }));
-            return opt.textContent.trim();
-          }
-        }
+    // まずメニュー一覧から直接選択を試みる
+    let selected = await trySelectMenu(page, menuName);
+    // 見つからない場合はメニューカテゴリ（例:「ヘア カラー」）を順に選択して再探索
+    // （カテゴリ選択後にメニュー一覧が動的に絞り込まれるため、未選択だと空のことがある）
+    if (!selected) {
+      const catValues = await page.evaluate(() => {
+        const sel = document.querySelector('select[id*="ategory"], select[name*="ategory"]');
+        return sel ? [...sel.options].map(o => o.value).filter(Boolean) : [];
+      });
+      for (const v of catValues) {
+        await page.evaluate((v) => {
+          const sel = document.querySelector('select[id*="ategory"], select[name*="ategory"]');
+          sel.value = v;
+          sel.dispatchEvent(new Event('change', { bubbles: true }));
+        }, v);
+        await page.waitForTimeout(800);
+        selected = await trySelectMenu(page, menuName);
+        if (selected) break;
       }
-      return null;
-    }, menuName);
+    }
     if (selected) console.log(`   ✏️  メニュー: ${selected}`);
     else console.log(`   ⚠️  メニュー「${menuName}」が見つからずスキップ`);
   }
