@@ -19,6 +19,7 @@
  * ※ 本番プロファイル(.state/chrome-profile)は使わない。実験専用の
  *   .state/chrome-profile-proxy を使うので、いまの正常なセッションには影響しない。
  */
+require('dotenv').config();
 const { chromium } = require('playwright');
 const path = require('path');
 const readline = require('readline');
@@ -86,9 +87,26 @@ function ask(question) {
     }
 
     // ── Test C: 手動ログイン → スケジュールページ ─────────────────
+    // Enter入力は使わず、ログイン完了（URLが/loginから離れる）を自動検知する
     console.log('\n── Test C: 手動ログイン ──');
     console.log('   開いているChromeウィンドウでSalonBoardにログインしてください。');
-    await ask('   ログインできたら、ここでEnterを押してください > ');
+    console.log('   （ログイン完了を自動検知します。最大10分待ちます）');
+    let loggedIn = false;
+    for (let i = 0; i < 200; i++) {
+      await page.waitForTimeout(3000);
+      const url = page.url();
+      const title = await page.title().catch(() => '');
+      if (!url.includes('/login') && !title.includes('ログイン') && !url.startsWith('chrome-error')) {
+        loggedIn = true;
+        console.log(`   ✅ ログイン検知: ${title} (${url.slice(0, 60)})`);
+        break;
+      }
+    }
+    if (!loggedIn) {
+      console.log('   ⚠️  10分以内にログインを検知できませんでした。もう一度実行してください。');
+      return;
+    }
+    await page.waitForTimeout(2000);
 
     const dateKey = new Date(Date.now() + 7 * 86400_000).toISOString().slice(0, 10).replace(/-/g, '');
     await page.goto(`https://salonboard.com/CLP/bt/schedule/salonSchedule/?date=${dateKey}`,
