@@ -14,3 +14,7 @@ state/
 memo.txt
 cookies_raw.json
 input.txt
+
+_temp/
+_diag_session.js
+_recon*.js
