@@ -550,6 +550,13 @@ body { font-family: "Hiragino Sans", Meiryo, sans-serif; background: #f0f2f0; co
   .sidebar { display: none; }
   .topnav__tab span { display: none; }
 }
+.cust-results{display:flex;flex-direction:column;gap:2px;margin-top:4px}
+.cust-hit{padding:6px 8px;background:#f6f6f6;border-radius:6px;cursor:pointer;font-size:13px;display:flex;justify-content:space-between}
+.cust-hit:hover{background:#eee}
+.cust-hit span{color:#999;font-size:11px}
+.menu-chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.chip{background:#efe9df;border-radius:14px;padding:3px 10px;font-size:12px}
+.chip b{margin-left:6px;cursor:pointer;color:#a00}
 </style>
 </head>
 <body>
@@ -840,16 +847,28 @@ body { font-family: "Hiragino Sans", Meiryo, sans-serif; background: #f0f2f0; co
       </div>
     </div>
     <div class="form-row">
+      <label>顧客検索 <span style="color:#aaa;font-size:11px">電話/名前</span></label>
+      <input type="text" id="newCustomerSearch" placeholder="電話番号 or 名前で検索" oninput="onCustomerSearch()">
+      <div id="newCustomerResults" class="cust-results"></div>
+    </div>
+    <div class="form-row">
       <label>お名前 <span style="color:#c00">*</span></label>
       <input type="text" id="newName" placeholder="例: 山田 花子">
+    </div>
+    <div class="form-row">
+      <label>カナ <span style="color:#aaa;font-size:11px">任意</span></label>
+      <input type="text" id="newNameKana" placeholder="例: やまだ はなこ">
     </div>
     <div class="form-row">
       <label>電話番号 <span style="color:#c00">*</span></label>
       <input type="tel" id="newPhone" placeholder="例: 090-1234-5678">
     </div>
     <div class="form-row">
-      <label>メニュー <span style="color:#aaa;font-size:11px">任意・詳細</span></label>
-      <input type="text" id="newMenu" placeholder="例: リタッチカラー">
+      <label>メニュー <span style="color:#c00">*</span></label>
+      <select id="newMenuCategory" onchange="renderMenuOptions()"><option value="">分類を選択</option></select>
+      <select id="newMenuPick" onchange="addMenuItem()"><option value="">メニューを選択</option></select>
+      <div id="newMenuItems" class="menu-chips"></div>
+      <div id="newMenuTotal" style="font-size:12px;color:#666;margin-top:4px"></div>
     </div>
     <div class="form-row">
       <label>メールアドレス <span style="color:#aaa;font-size:11px">任意</span></label>
@@ -1194,10 +1213,15 @@ async function openNewModal() {
   document.getElementById('newDate').min   = today;
   document.getElementById('newDate').value = '';
   document.getElementById('newServiceType').value = '';
-  ['newName','newPhone','newMenu','newEmail','newMemo','newTime'].forEach(id =>
+  ['newName','newPhone','newEmail','newMemo','newTime'].forEach(id =>
     document.getElementById(id).value = ''
   );
   document.getElementById('newTimeRow').style.display = 'none';
+  document.getElementById('newCustomerSearch').value = '';
+  document.getElementById('newCustomerResults').innerHTML = '';
+  document.getElementById('newNameKana').value = '';
+  _selectedMenu = []; renderSelectedMenu();
+  loadMenuMaster();
   document.getElementById('newModal').classList.add('open');
   // serviceSlotsData がまだ未取得なら fetch（loadSyncTime で取得済みの場合はスキップ）
   if (!serviceSlotsData) {
@@ -1220,7 +1244,7 @@ function closeNewModal() {
 // サービス種別・日付のどちらかが変わったら空き枠を再計算
 async function onNewSlotCondChange() {
   const date        = document.getElementById('newDate').value;
-  const serviceType = document.getElementById('newServiceType').value;
+  const serviceType = document.getElementById('newServiceType')?.value || (_selectedMenu[0] && _selectedMenu[0].service) || '';
   document.getElementById('newTime').value = '';
   const grid = document.getElementById('newSlotGrid');
   // 日付だけ選んでサービス未選択 → 誘導メッセージを表示
@@ -1304,37 +1328,89 @@ function selectNewSlot(time, el) {
   document.getElementById('newTime').value = time;
 }
 
+/* ══ 顧客検索 ══ */
+let _custTimer = null;
+async function onCustomerSearch() {
+  clearTimeout(_custTimer);
+  const q = document.getElementById('newCustomerSearch').value.trim();
+  const box = document.getElementById('newCustomerResults');
+  if (q.length < 2) { box.innerHTML = ''; return; }
+  _custTimer = setTimeout(async () => {
+    const key = /^[0-9-]+$/.test(q) ? `phone=${encodeURIComponent(q)}` : `name=${encodeURIComponent(q)}`;
+    const r = await fetch(`/api/customers?${key}`, { headers: { Authorization: `Bearer ${password}` } });
+    const d = await r.json();
+    const list = d.customers || (d.customer ? [d.customer] : []);
+    box.innerHTML = list.slice(0, 5).map(c =>
+      `<div class="cust-hit" onclick='fillCustomer(${JSON.stringify(c).replace(/'/g, "&#39;")})'>${c.name}（${c.phone||'—'}）<span>来店${c.visitCount||0}回</span></div>`
+    ).join('');
+  }, 250);
+}
+function fillCustomer(c) {
+  document.getElementById('newName').value = c.name || '';
+  document.getElementById('newPhone').value = c.phone || '';
+  document.getElementById('newCustomerResults').innerHTML = '';
+  document.getElementById('newCustomerSearch').value = '';
+}
+
+/* ══ メニューマスタ ══ */
+let _menuMaster = [];
+let _selectedMenu = [];
+async function loadMenuMaster() {
+  const r = await fetch('/api/menu'); const d = await r.json();
+  _menuMaster = d.menu || [];
+  const cats = [...new Set(_menuMaster.map(m => m.category))];
+  document.getElementById('newMenuCategory').innerHTML =
+    '<option value="">分類を選択</option>' + cats.map(c => `<option>${c}</option>`).join('');
+}
+function renderMenuOptions() {
+  const cat = document.getElementById('newMenuCategory').value;
+  const items = _menuMaster.filter(m => m.category === cat);
+  document.getElementById('newMenuPick').innerHTML =
+    '<option value="">メニューを選択</option>' +
+    items.map(m => `<option value="${m.code}">${m.name}（¥${m.priceIncTax}）</option>`).join('');
+}
+function addMenuItem() {
+  const code = document.getElementById('newMenuPick').value; if (!code) return;
+  const m = _menuMaster.find(x => x.code === code); if (!m) return;
+  _selectedMenu.push({ code: m.code, name: m.name, price: m.priceIncTax, durationMin: m.durationMin, service: m.service });
+  renderSelectedMenu();
+}
+function removeMenuItem(i) { _selectedMenu.splice(i, 1); renderSelectedMenu(); }
+function renderSelectedMenu() {
+  document.getElementById('newMenuItems').innerHTML = _selectedMenu.map((m, i) =>
+    `<span class="chip">${m.name} ¥${m.price}<b onclick="removeMenuItem(${i})">×</b></span>`).join('');
+  const yen = _selectedMenu.reduce((s, m) => s + m.price, 0);
+  const min = _selectedMenu.reduce((s, m) => s + (m.durationMin || 0), 0);
+  document.getElementById('newMenuTotal').textContent = _selectedMenu.length ? `合計 ¥${yen} / 約${min}分` : '';
+  if (typeof onNewSlotCondChange === 'function') onNewSlotCondChange();
+}
+
 async function submitNew() {
-  const date        = document.getElementById('newDate').value;
-  const time        = document.getElementById('newTime').value;
-  const name        = document.getElementById('newName').value.trim();
-  const phone       = document.getElementById('newPhone').value.trim();
-  const serviceType = document.getElementById('newServiceType').value;
-  const menuDetail  = document.getElementById('newMenu').value.trim();
-  // メニュー名: 詳細があればそれを、なければサービス種別をそのまま使う
-  const menu  = menuDetail || serviceType;
+  const date = document.getElementById('newDate').value;
+  const time = document.getElementById('newTime').value;
+  const name = document.getElementById('newName').value.trim();
+  const nameKana = document.getElementById('newNameKana').value.trim();
+  const phone = document.getElementById('newPhone').value.trim();
   const email = document.getElementById('newEmail').value.trim();
   const memo  = document.getElementById('newMemo').value.trim();
 
-  if (!serviceType) { showToast('サービスを選択してください', true); return; }
-  if (!date)  { showToast('日付を選択してください', true); return; }
-  if (!time)  { showToast('時間スロットを選択してください', true); return; }
-  if (!name)  { showToast('お名前を入力してください', true); return; }
+  if (!date) { showToast('日付を選択してください', true); return; }
+  if (!time) { showToast('時間スロットを選択してください', true); return; }
+  if (!name) { showToast('お名前を入力してください', true); return; }
   if (!phone) { showToast('電話番号を入力してください', true); return; }
+  if (!_selectedMenu.length) { showToast('メニューを選択してください', true); return; }
 
   const btn = document.getElementById('newSubmitBtn');
   btn.disabled = true; btn.textContent = '登録中...';
   try {
     const res = await fetch('/api/reserve', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ date, time, name, phone, menuName: menu, email, memo, source: 'staff' }),
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ date, time, name, nameKana, phone, email, memo,
+        menuItems: _selectedMenu, source: 'staff' }),
     });
     const data = await res.json();
     if (!res.ok) { showToast(`エラー: ${data.error || '登録失敗'}`, true); return; }
-    closeNewModal();
-    showToast('✅ 予約を登録しました');
-    await reload();
+    closeNewModal(); showToast('✅ 予約を登録しました'); await reload();
   } catch { showToast('通信エラーが発生しました', true); }
   finally { btn.disabled = false; btn.textContent = '予約を登録'; }
 }
