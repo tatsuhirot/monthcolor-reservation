@@ -38,6 +38,26 @@ function getOccupiedSlots(timeStr, menuId) {
   });
 }
 
+// 複数メニューの合計所要時間から占有スロットを返す
+function getOccupiedSlotsForItems(timeStr, menuItems) {
+  const totalMin = (menuItems || []).reduce((s, m) => s + (m.durationMin || 0), 0) || 60;
+  const [h, m] = timeStr.split(':').map(Number);
+  const startMin = h * 60 + m;
+  const slotCount = Math.ceil(totalMin / 30);
+  return Array.from({ length: slotCount }, (_, i) => {
+    const t = startMin + i * 30;
+    return `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
+  });
+}
+
+// menuItems から主サービス区分を決定（null=割引等は飛ばす）
+function serviceForItems(menuItems) {
+  for (const m of (menuItems || [])) {
+    if (m.service) return m.service;
+  }
+  return 'hair';
+}
+
 // staffCategory の正規化（旧データ互換: "ヘア　カラー" → "hair" 等）
 function normalizeCategory(raw) {
   if (['hair', 'white', 'lash', 'spa'].includes(raw)) return raw;
@@ -111,4 +131,5 @@ module.exports = {
   CAPACITY, MENU_DURATION, ALL_TIMES,
   getOccupiedSlots, normalizeCategory, buildBookedMap, loadQueue, QUEUE_KEY,
   menuToCategory, occupiedFromTimeRange,
+  getOccupiedSlotsForItems, serviceForItems,
 };
