@@ -557,6 +557,10 @@ body { font-family: "Hiragino Sans", Meiryo, sans-serif; background: #f0f2f0; co
 .menu-chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
 .chip{background:#efe9df;border-radius:14px;padding:3px 10px;font-size:12px}
 .chip b{margin-left:6px;cursor:pointer;color:#a00}
+.kana{color:#999;font-size:11px}
+.vbadge{font-size:11px;padding:2px 8px;border-radius:10px;background:#eee}
+.v-reserved{background:#e8eefc}.v-arrived{background:#e6f7ea}.v-unpaid{background:#fdeede}.v-paid{background:#eef0f2}.v-cancelled{background:#fde8e8}
+.sbadge{font-size:11px;color:#777;margin-left:6px}
 </style>
 </head>
 <body>
@@ -913,6 +917,11 @@ const STATUS_LABEL = {
   cancel_requested: '🟣 キャンセル待ち',
   update_requested: '🔵 変更待ち',
 };
+const VISIT_LABEL = {
+  reserved: '📅 予約', arrived: '🟢 来店', unpaid: '💰 未精算',
+  paid: '✅ 精算済', cancelled: '🚫 キャンセル',
+};
+const SOURCE_LABEL = { net: '🌐ネット', phone: '📞電話', walkin: '🚶店頭', staff: '🧑‍💼手動', manual: '✍️手動' };
 
 /* ══ トースト ══ */
 let toastTimer = null;
@@ -1085,14 +1094,24 @@ function renderCards() {
     const canCancel = ['pending', 'completed'].includes(r.status);
     const canEdit   = ['pending', 'completed'].includes(r.status);
 
+    const vs = d.visitStatus || 'reserved';
+    const kana = d.nameKana ? `<span class="kana">（${d.nameKana}）</span>` : '';
+    const menus = (d.menuItems && d.menuItems.length)
+      ? d.menuItems.map(m => m.name).join('＆')
+      : (d.menuName || '—');
+    const badges = `<span class="vbadge v-${vs}">${VISIT_LABEL[vs] || vs}</span>` +
+                   (d.source ? `<span class="sbadge">${SOURCE_LABEL[d.source] || ''}</span>` : '') +
+                   (d.nominated ? `<span class="sbadge">⭐指名</span>` : '');
+
     return `
       <div class="card ${r.status}">
         <div class="card-header">
-          <div class="card-title">${d.date} ${d.time} — ${d.name} 様</div>
+          <div class="card-title">${d.date} ${d.time} — ${d.name}${kana} 様</div>
           <div class="card-status ${r.status}">${statusLabel}</div>
         </div>
+        <div class="card-badges" style="padding:4px 16px 0">${badges}</div>
         <div class="card-body">
-          <span><strong>メニュー</strong>: ${d.menuName || '—'}</span>
+          <span><strong>メニュー</strong>: ${menus}</span>
           <span><strong>電話</strong>: ${d.phone || '—'}</span>
           <span><strong>メール</strong>: ${d.email || '—'}</span>
           <span><strong>備考</strong>: ${d.memo || '—'}</span>
@@ -1369,11 +1388,17 @@ function renderMenuOptions() {
     '<option value="">メニューを選択</option>' +
     items.map(m => `<option value="${m.code}">${m.name}（¥${m.priceIncTax}）</option>`).join('');
 }
+const SERVICE_TO_TYPE = { hair: 'カラー', white: 'ホワイトニング', lash: 'まつ毛パーマ', spa: 'ドライヘッドスパ' };
 function addMenuItem() {
   const code = document.getElementById('newMenuPick').value; if (!code) return;
   const m = _menuMaster.find(x => x.code === code); if (!m) return;
   _selectedMenu.push({ code: m.code, name: m.name, price: m.priceIncTax, durationMin: m.durationMin, service: m.service });
   renderSelectedMenu();
+  const sel = document.getElementById('newServiceType');
+  if (sel && !sel.value && _selectedMenu[0] && SERVICE_TO_TYPE[_selectedMenu[0].service]) {
+    sel.value = SERVICE_TO_TYPE[_selectedMenu[0].service];
+    if (typeof onNewSlotCondChange === 'function') onNewSlotCondChange();
+  }
 }
 function removeMenuItem(i) { _selectedMenu.splice(i, 1); renderSelectedMenu(); }
 function renderSelectedMenu() {
