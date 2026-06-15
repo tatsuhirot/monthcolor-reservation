@@ -10,7 +10,7 @@
 const storage = require('../lib/storage');
 const { v4: uuidv4 } = require('uuid');
 const { Resend } = require('resend');
-const { CAPACITY, getOccupiedSlots, buildBookedMap, loadQueue, QUEUE_KEY } = require('./_shared');
+const { CAPACITY, getOccupiedSlots, getOccupiedSlotsForItems, serviceForItems, normalizeCategory, buildBookedMap, loadQueue, QUEUE_KEY } = require('./_shared');
 
 module.exports = async function handler(req, res) {
   // CORS
@@ -22,22 +22,28 @@ module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { date, time, name, menuName, menuId, staffCategory, phone, email, memo } = req.body || {};
+  const {
+    date, time, name, nameKana, phone, email, memo,
+    menuItems, source, nominated, customerId,
+    menuName, menuId, staffCategory,            // 後方互換（旧クライアント）
+  } = req.body || {};
 
   if (!date || !time || !name) {
     return res.status(400).json({ error: '日付・時間・お名前は必須です' });
   }
 
-  // 新しい予約が占有するスロット一覧（施術時間を考慮）
-  const newSlots = getOccupiedSlots(time, menuId);
+  // menuItems があれば新方式、無ければ旧 menuId 単体から擬似 items を作る
+  const items = Array.isArray(menuItems) && menuItems.length
+    ? menuItems
+    : (menuId ? [{ code: menuId, name: menuName || '', price: 0, durationMin: 0, service: null }] : []);
+  const service = serviceForItems(items) || (staffCategory && normalizeCategory(staffCategory)) || 'hair';
+  const newSlots = items.length ? getOccupiedSlotsForItems(time, items) : getOccupiedSlots(time, menuId);
+  const displayMenu = menuName || items.map(i => i.name).filter(Boolean).join('＆');
 
   try {
-    // queue から空き枠を確認（メール→queueが正の情報源）
     const queue = await loadQueue();
-    const cap = CAPACITY[staffCategory] || 1;
-    const booked = buildBookedMap(queue, staffCategory);
-
-    // 新規予約の占有スロットが全て空きか確認
+    const cap = CAPACITY[service] || 1;
+    const booked = buildBookedMap(queue, service);
     const fullSlot = newSlots.find(s => (booked[`${date}:${s}`] || 0) >= cap);
     if (fullSlot) {
       return res.status(409).json({ error: 'この時間帯はすでに満席です。別の時間帯をお選びください。' });
@@ -46,8 +52,21 @@ module.exports = async function handler(req, res) {
     // 新しい予約をキューに追加
     const reservation = {
       id:        uuidv4(),
-      status:    'pending',  // pending | processing | completed | failed
-      data:      { date, time, name, menuName, menuId, staffCategory, phone, email, memo },
+      status:    'pending',           // SalonBoard送信状態: pending|processing|completed|failed
+      data: {
+        date, time, name,
+        nameKana: nameKana || '',
+        customerId: customerId || (phone ? `phone:${phone.replace(/[^0-9]/g, '')}` : null),
+        phone: phone || '', email: email || '', memo: memo || '',
+        menuItems: items,
+        menuName: displayMenu,        // 後方互換: worker/メール用の表示名
+        menuId: menuId || (items[0] && items[0].code) || null,
+        service,
+        staffCategory: staffCategory || service,   // 後方互換
+        source: source || 'manual',  // net|phone|walkin|manual|staff
+        nominated: !!nominated,
+        visitStatus: 'reserved',      // 来店管理: reserved→arrived→unpaid→paid|cancelled
+      },
       createdAt: new Date().toISOString(),
       processedAt: null,
       error:     null,
@@ -60,12 +79,12 @@ module.exports = async function handler(req, res) {
 
     // 確認メール送信（メールアドレスがある場合）
     if (email) {
-      await sendConfirmEmail({ date, time, name, menuName, email, phone, memo })
+      await sendConfirmEmail({ date, time, name, menuName: displayMenu, email, phone, memo })
         .catch(err => console.warn('⚠️ メール送信失敗:', err.message));
     }
 
     // スタッフ新着通知
-    await sendStaffNotification({ date, time, name, menuName, phone, email, memo })
+    await sendStaffNotification({ date, time, name, menuName: displayMenu, phone, email, memo })
       .catch(err => console.warn('⚠️ スタッフ通知失敗:', err.message));
 
     return res.status(200).json({ ok: true, id: reservation.id });
