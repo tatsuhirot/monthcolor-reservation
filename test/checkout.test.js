@@ -61,3 +61,18 @@ test('computeCheckout カードは change=null・tendered検証スキップ', ()
   assert.equal(r.change, null);
   assert.equal(r.total, 4680);
 });
+
+test('calcChange は tendered が undefined なら例外', () => {
+  assert.throws(() => calcChange(1000, undefined), /預かり/);
+  assert.throws(() => calcChange(1000, null), /預かり/);
+});
+
+test('applyDiscount amount は小数を四捨五入', () => {
+  assert.deepEqual(applyDiscount(5180, { type: 'amount', value: 100.5 }),
+    { discountAmount: 101, total: 5079 });
+});
+
+test('nextSlipNo は 999 超で例外', () => {
+  assert.equal(nextSlipNo('2026-06-17', 998), '20260617-999');
+  assert.throws(() => nextSlipNo('2026-06-17', 999), /桁数超過/);
+});
