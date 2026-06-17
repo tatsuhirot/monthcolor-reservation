@@ -97,6 +97,16 @@ module.exports = async function handler(req, res) {
         return res.status(400).json({ error: `${target.status} の予約は変更できません` });
       }
 
+    } else if (action === 'setVisitStatus') {
+      const { visitStatus } = req.body || {};
+      const allowed = ['reserved', 'arrived', 'unpaid', 'paid', 'cancelled'];
+      if (!allowed.includes(visitStatus)) {
+        return res.status(400).json({ error: `visitStatus が不正です: ${visitStatus}` });
+      }
+      target.data = { ...target.data, visitStatus };
+      target.updatedAt = new Date().toISOString();
+      console.log(`✅ visitStatus 更新: ${id} → ${visitStatus}`);
+
     } else {
       return res.status(400).json({ error: `不明なアクション: ${action}` });
     }
