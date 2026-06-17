@@ -86,6 +86,7 @@ module.exports = async function handler(req, res) {
     }
 
     const sales = await loadBlob(SALES_KEY);
+    // 採番は当日 sales 件数+1。単一サロン運用のため分散ロックは持たない（同時会計の衝突は許容）。
     const salesSameDay = sales.filter(s => s.date === rsv.data.date).length;
     const slipNo = nextSlipNo(rsv.data.date, salesSameDay);
     const checkoutAt = new Date().toISOString();
@@ -112,7 +113,14 @@ module.exports = async function handler(req, res) {
       staff: rsv.data.staff || '', checkoutAt,
     };
     sales.push(saleRecord);
-    await saveBlob(SALES_KEY, sales);
+    try {
+      await saveBlob(SALES_KEY, sales);
+    } catch (e) {
+      // 注意: 予約は既に visitStatus=paid で保存済み。ここで失敗すると売上台帳に欠落が出る
+      // （単一サロン運用のため分散ロック・トランザクションは持たない＝設計上の許容リスク）。
+      console.error(`❌ 売上台帳書込失敗（予約は精算済）: slipNo=${slipNo} reservationId=${reservationId}`, e);
+      throw e;
+    }
 
     console.log(`✅ 会計完了: ${slipNo} / ${rsv.data.name} / ¥${computed.total} (${payment})`);
 
@@ -127,7 +135,7 @@ module.exports = async function handler(req, res) {
       `💰 会計完了 [${slipNo}]\n━━━━━━━━━━━\n` +
       `お客様: ${rsv.data.name}\n${itemLines}${discLine}\n` +
       `合計: ¥${computed.total.toLocaleString()}\n支払: ${payLabel}\n━━━━━━━━━━━`
-    );
+    ).catch(() => {});
 
     return res.status(200).json({ ok: true, slipNo, total: computed.total, change: computed.change, sale: saleRecord });
   } catch (e) {
@@ -166,6 +174,10 @@ async function sendThankYouEmail({ sale, email }) {
       </table>
       <div style="text-align:center;margin-bottom:24px;">
         <a href="${process.env.SITE_URL || 'https://monthcolor-reservation.vercel.app'}" style="display:inline-block;background:#1a1a1a;color:#fff;text-decoration:none;padding:14px 36px;border-radius:8px;font-size:14px;font-weight:600;letter-spacing:.05em;">次回のご予約はこちら →</a>
+      </div>
+      <div style="background:#f9f6f2;border-radius:8px;padding:20px;text-align:center;">
+        <p style="color:#888;font-size:12px;margin:0 0 10px;">ご来店の感想をお聞かせください</p>
+        <a href="https://g.page/r/monthcolor/review" style="color:#e60;font-size:13px;font-weight:600;text-decoration:none;">⭐ Googleで口コミを書く</a>
       </div>
     </div>
     <div style="background:#f5f5f5;padding:16px 32px;border-top:1px solid #e8e8e8;">
