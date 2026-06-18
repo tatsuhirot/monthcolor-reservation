@@ -44,13 +44,47 @@ function buildReceiptHtml(sale) {
   const shopPhone   = process.env.SHOP_PHONE   || '03-6820-5623';
   const shopEmail   = process.env.SHOP_EMAIL   || '';
 
-  const discountRow = sale.discount > 0
-    ? `<tr><td>割引</td><td class="amount">-&yen;${sale.discount.toLocaleString()}</td></tr>`
-    : '';
+  const receiptNo = sale.slipNo
+    || (sale.visitId ? sale.visitId.slice(0, 8).toUpperCase()
+        : (sale.checkoutAt || '').replace(/\D/g, '').slice(0, 8));
 
-  const receiptNo = sale.visitId
-    ? sale.visitId.slice(0, 8).toUpperCase()
-    : (sale.checkoutAt || '').replace(/\D/g, '').slice(0, 8);
+  // 明細行（items[] があれば複数行、無ければ旧 menuName 単一行）
+  const lineItems = Array.isArray(sale.items) && sale.items.length
+    ? sale.items
+    : [{ name: sale.menuName || sale.category || '施術', price: sale.price || 0, qty: 1 }];
+  const itemRows = lineItems.map(it => {
+    const amt = (Number(it.price) || 0) * (Number(it.qty) || 1);
+    const qtyLabel = (Number(it.qty) || 1) > 1 ? ` ×${it.qty}` : '';
+    return `<tr><td>${it.name}${qtyLabel}</td><td class="amount">&yen;${amt.toLocaleString()}</td></tr>`;
+  }).join('');
+
+  const subtotal      = typeof sale.subtotal === 'number' ? sale.subtotal
+                        : lineItems.reduce((s, it) => s + (Number(it.price) || 0) * (Number(it.qty) || 1), 0);
+  const discountAmount = typeof sale.discountAmount === 'number' ? sale.discountAmount
+                        : (typeof sale.discount === 'number' ? sale.discount : 0);
+  const total          = typeof sale.total === 'number' ? sale.total
+                        : (typeof sale.finalPrice === 'number' ? sale.finalPrice : subtotal - discountAmount);
+  const taxIncluded    = typeof sale.taxIncluded === 'number' ? sale.taxIncluded
+                        : Math.round(total - total / 1.1);
+
+  const subtotalRow = `<tr><td>小計</td><td class="amount">&yen;${subtotal.toLocaleString()}</td></tr>`;
+  const discountRow = discountAmount > 0
+    ? `<tr><td>割引</td><td class="amount">-&yen;${discountAmount.toLocaleString()}</td></tr>` : '';
+  const tenderedRow = (typeof sale.tendered === 'number' && sale.tendered !== null)
+    ? `<tr><td>お預かり</td><td class="amount">&yen;${sale.tendered.toLocaleString()}</td></tr>
+       <tr><td>お釣り</td><td class="amount">&yen;${(sale.change || 0).toLocaleString()}</td></tr>` : '';
+  const itemsTable = `
+    <table class="items">
+      <thead><tr><th>内容</th><th>金額</th></tr></thead>
+      <tbody>
+        ${itemRows}
+        ${subtotalRow}
+        ${discountRow}
+        <tr class="total-row"><td>お支払い合計</td><td class="amount">&yen;${total.toLocaleString()}</td></tr>
+        <tr><td style="font-size:11px;color:#888;">（内消費税10%）</td><td class="amount" style="font-size:11px;color:#888;">&yen;${taxIncluded.toLocaleString()}</td></tr>
+        ${tenderedRow}
+      </tbody>
+    </table>`;
 
   return `<!DOCTYPE html>
 <html lang="ja">
@@ -183,22 +217,7 @@ function buildReceiptHtml(sale) {
       担当:&nbsp;&nbsp;&nbsp;<span>${sale.staff || '―'}</span>
     </div>
 
-    <table class="items">
-      <thead>
-        <tr><th>内容</th><th>金額</th></tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>${sale.menuName || sale.category || '施術'}</td>
-          <td class="amount">&yen;${sale.price.toLocaleString()}</td>
-        </tr>
-        ${discountRow}
-        <tr class="total-row">
-          <td>お支払い合計</td>
-          <td class="amount">&yen;${sale.finalPrice.toLocaleString()}</td>
-        </tr>
-      </tbody>
-    </table>
+    ${itemsTable}
 
     <div class="payment-section">
       お支払方法:&nbsp;<span>${paymentLabel(sale.payment)}</span>
@@ -242,7 +261,8 @@ module.exports = async function handler(req, res) {
   }
 
   const sales = await loadBlob(SALES_KEY);
-  const sale  = sales.find(s => s.visitId === saleId);
+  const sale  = sales.find(s =>
+    s.slipNo === saleId || s.visitId === saleId || s.reservationId === saleId);
   if (!sale) {
     return res.status(404).send('<h1>売上データが見つかりません</h1>');
   }

@@ -561,6 +561,31 @@ body { font-family: "Hiragino Sans", Meiryo, sans-serif; background: #f0f2f0; co
 .vbadge{font-size:11px;padding:2px 8px;border-radius:10px;background:#eee}
 .v-reserved{background:#e8eefc}.v-arrived{background:#e6f7ea}.v-unpaid{background:#fdeede}.v-paid{background:#eef0f2}.v-cancelled{background:#fde8e8}
 .sbadge{font-size:11px;color:#777;margin-left:6px}
+.badge-paid{background:#e6f4ea;color:#1a7f37;padding:2px 8px;border-radius:10px;font-size:12px;font-weight:600}
+.btn-arrive{background:#e6f7ea;color:#1a7f37;border:1px solid #b2dfdb;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:12px}
+.btn-arrive:hover{background:#c8e6c9}
+.btn-checkout{background:#2d6a31;color:#fff;border:none;padding:6px 14px;border-radius:5px;cursor:pointer;font-size:12px}
+.btn-checkout:hover{background:#1b5e20}
+/* 会計モーダル */
+.checkout-modal{max-height:85vh;overflow-y:auto;max-width:560px}
+.co-items{width:100%;border-collapse:collapse;margin-bottom:10px}
+.co-items td{padding:6px 4px;border-bottom:1px solid #eee;font-size:13px}
+.co-items td:last-child{text-align:right;white-space:nowrap}
+.co-add{display:flex;gap:8px;margin-bottom:12px}
+.co-add select{flex:1;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px}
+.co-calc{border-top:1px solid #ddd;padding-top:10px}
+.co-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 0;font-size:14px}
+.co-row.total-line{font-size:18px;font-weight:700;border-top:2px solid #222;padding-top:8px;margin-top:4px}
+.co-row.muted-row{color:#888;font-size:12px}
+.co-pay{display:flex;gap:16px;margin:14px 0;font-size:14px}
+.co-qty{width:52px;padding:4px 6px;border:1px solid #ddd;border-radius:5px;text-align:center}
+.co-del{color:#c00;cursor:pointer;background:none;border:none;font-size:16px;padding:0 4px}
+/* 物販マスタ */
+#productAdmin{padding:20px;max-width:600px}
+#productAdmin h3{margin:0 0 14px;font-size:16px}
+.prod-add{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+.prod-add input{flex:1;min-width:120px;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px}
+.prod-add button{padding:8px 16px;border:none;background:#2d6a31;color:#fff;border-radius:6px;cursor:pointer;font-size:13px}
 </style>
 </head>
 <body>
@@ -680,6 +705,7 @@ body { font-family: "Hiragino Sans", Meiryo, sans-serif; background: #f0f2f0; co
       <div class="content-tabs">
         <button class="content-tab active" id="tabList" onclick="switchContentTab('list',this)">📅 予約一覧</button>
         <button class="content-tab" id="tabSched" onclick="switchContentTab('sched',this)">🗓 タイムライン</button>
+        <button class="content-tab" id="tabProd" onclick="switchContentTab('prod',this)">🛍 物販マスタ</button>
       </div>
 
       <!-- コンテンツエリア -->
@@ -736,6 +762,22 @@ body { font-family: "Hiragino Sans", Meiryo, sans-serif; background: #f0f2f0; co
           </div>
           <div class="card-list" id="cardList">
             <div class="loading">読み込み中...</div>
+          </div>
+        </div>
+
+        <!-- 物販マスタ管理 -->
+        <div id="productAdmin" style="display:none">
+          <div class="queue-head"><div class="queue-head__title">🛍 物販マスタ</div></div>
+          <div style="padding:16px">
+            <table class="sb-table" id="prodTable">
+              <thead><tr><th>商品名</th><th>価格（税込）</th><th>状態</th><th></th></tr></thead>
+              <tbody></tbody>
+            </table>
+            <div class="prod-add" style="margin-top:14px">
+              <input id="prodName" placeholder="商品名" style="flex:2">
+              <input id="prodPrice" type="number" placeholder="価格(税込)" style="width:120px">
+              <button onclick="addProduct()">追加</button>
+            </div>
           </div>
         </div>
 
@@ -885,6 +927,47 @@ body { font-family: "Hiragino Sans", Meiryo, sans-serif; background: #f0f2f0; co
     <div class="modal-actions">
       <button class="btn-ghost" onclick="closeNewModal()">キャンセル</button>
       <button class="btn-primary" id="newSubmitBtn" onclick="submitNew()">予約を登録</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ 会計モーダル ══ -->
+<div class="modal-overlay" id="checkoutModal">
+  <div class="modal checkout-modal">
+    <h2>会計 <span id="coCustomer" style="color:#888;font-weight:400;font-size:14px"></span></h2>
+    <table class="co-items"><tbody id="coItemsBody"></tbody></table>
+    <div class="co-add">
+      <select id="coMenuPick" onchange="coAddMenu(this)"><option value="">＋メニュー追加…</option></select>
+      <select id="coProductPick" onchange="coAddProduct(this)"><option value="">＋物販追加…</option></select>
+    </div>
+    <div class="co-calc">
+      <div class="co-row"><span>小計</span><span id="coSubtotal">¥0</span></div>
+      <div class="co-row">
+        <span>割引</span>
+        <div style="display:flex;gap:6px;align-items:center">
+          <select id="coDiscType" onchange="recalcCheckout()" style="padding:5px 8px;border:1px solid #ddd;border-radius:5px">
+            <option value="amount">¥</option>
+            <option value="percent">%</option>
+          </select>
+          <input id="coDiscValue" type="number" min="0" value="0" style="width:88px;padding:5px 8px;border:1px solid #ddd;border-radius:5px" oninput="recalcCheckout()">
+        </div>
+      </div>
+      <div class="co-row total-line"><span>合計</span><span id="coTotal">¥0</span></div>
+      <div class="co-row muted-row"><span>内消費税10%</span><span id="coTax">¥0</span></div>
+    </div>
+    <div class="co-pay">
+      <label><input type="radio" name="coPay" value="cash" checked onchange="recalcCheckout()"> 現金</label>
+      <label><input type="radio" name="coPay" value="card" onchange="recalcCheckout()"> カード</label>
+      <label><input type="radio" name="coPay" value="qr" onchange="recalcCheckout()"> QR払い</label>
+    </div>
+    <div class="co-row" id="coCashRow">
+      <span>お預かり</span>
+      <input id="coTendered" type="number" min="0" style="width:130px;padding:7px 10px;border:1px solid #ddd;border-radius:6px" oninput="recalcCheckout()" placeholder="0">
+      <span>お釣り</span><span id="coChange" style="font-weight:700">¥0</span>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeCheckout()">キャンセル</button>
+      <button class="btn-primary" id="coConfirmBtn" onclick="confirmCheckout()">会計確定</button>
     </div>
   </div>
 </div>
@@ -1122,10 +1205,23 @@ function renderCards() {
         <div class="card-actions">
           ${canEdit   ? `<button class="btn btn-edit"   onclick="openEdit('${r.id}')">✏️ 変更</button>` : ''}
           ${canCancel ? `<button class="btn btn-cancel" onclick="openCancelModal('${r.id}')">🚫 キャンセル</button>` : ''}
+          ${visitStatusActions(r)}
         </div>` : ''}
       </div>
     `;
   }).join('');
+}
+
+function visitStatusActions(r) {
+  const vs = r.data.visitStatus || 'reserved';
+  if (vs === 'paid') {
+    const slipNo = r.data.checkout && r.data.checkout.slipNo ? r.data.checkout.slipNo : '';
+    return `<span class="badge-paid">精算済</span>` +
+      (slipNo ? ` <a href="/api/receipt?saleId=${encodeURIComponent(slipNo)}&token=${encodeURIComponent(password)}" target="_blank" class="btn btn-edit">領収書</a>` : '');
+  }
+  const arriveBtn = vs === 'reserved'
+    ? `<button class="btn btn-arrive" onclick="setVisitStatus('${r.id}','arrived')">来店</button>` : '';
+  return `${arriveBtn}<button class="btn-checkout" onclick="openCheckout('${r.id}')">会計</button>`;
 }
 
 /* ══ キャンセル確認モーダル ══ */
@@ -1851,6 +1947,13 @@ function switchContentTab(tab, el) {
 
   const listArea = document.querySelector('.content-area');
   const schedArea = document.getElementById('schedSection');
+  const prodSection = document.getElementById('productAdmin');
+
+  // 物販マスタは listArea 内なので、まず listArea 内の表示を制御
+  document.getElementById('csSection').style.display   = tab === 'prod' ? 'none' : '';
+  document.getElementById('sbSection').style.display   = tab === 'prod' ? 'none' : '';
+  document.getElementById('queueSection').style.display = tab === 'prod' ? 'none' : '';
+  prodSection.style.display = tab === 'prod' ? '' : 'none';
 
   if (tab === 'sched') {
     listArea.style.display = 'none';
@@ -1859,6 +1962,7 @@ function switchContentTab(tab, el) {
   } else {
     listArea.style.display = '';
     schedArea.style.display = 'none';
+    if (tab === 'prod') loadProductAdmin();
   }
 }
 
@@ -2165,6 +2269,207 @@ function openCsDetailByRef(name, date) {
   const idx = csCurrentList.findIndex(r => r.name === name);
   if (idx !== -1) { openCsDetail(idx); return; }
   // 別の日付の場合はモーダル非対応（情報なし）
+}
+
+/* ══ 来店遷移 ══ */
+async function setVisitStatus(id, visitStatus) {
+  const r = await fetch('/api/admin-action', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${password}` },
+    body: JSON.stringify({ action: 'setVisitStatus', id, visitStatus }),
+  });
+  if (!r.ok) {
+    const j = await r.json().catch(() => ({}));
+    alert('更新失敗: ' + (j.error || r.status));
+    return;
+  }
+  await reload();
+}
+
+/* ══ 会計モーダル ══ */
+let coState = null; // { reservationId, customer, lines:[{kind,code|id,name,price,qty}] }
+let _productMaster = null; // [{id,name,price,active}]
+
+async function loadProductMaster() {
+  if (_productMaster) return _productMaster;
+  try {
+    const r = await fetch('/api/products?activeOnly=1', { headers: { Authorization: `Bearer ${password}` } });
+    _productMaster = (await r.json()).products || [];
+  } catch { _productMaster = []; }
+  return _productMaster;
+}
+
+async function openCheckout(reservationId) {
+  // メニューマスタ・物販マスタを準備
+  if (!_menuMaster || !_menuMaster.length) await loadMenuMaster();
+  _productMaster = null; // 毎回最新取得
+  await loadProductMaster();
+
+  const rsv = reservations.find(r => r.id === reservationId);
+  if (!rsv) { alert('予約が見つかりません'); return; }
+
+  const items = (rsv.data.menuItems || []).map(m => ({
+    kind: 'service', code: m.code || null, name: m.name,
+    price: Number(m.price) || 0, qty: Number(m.qty) || 1,
+  }));
+  coState = { reservationId, customer: rsv.data.name, lines: items };
+
+  document.getElementById('coCustomer').textContent = rsv.data.name + ' 様';
+
+  // メニュー選択肢
+  document.getElementById('coMenuPick').innerHTML =
+    '<option value="">＋メニュー追加…</option>' +
+    _menuMaster.map(m => `<option value="${m.code}">${m.name}（¥${(Number(m.priceIncTax)||0).toLocaleString()}）</option>`).join('');
+
+  // 物販選択肢
+  document.getElementById('coProductPick').innerHTML =
+    '<option value="">＋物販追加…</option>' +
+    (_productMaster || []).map(p => `<option value="${p.id}">${p.name}（¥${(p.price||0).toLocaleString()}）</option>`).join('');
+
+  document.getElementById('coDiscType').value  = 'amount';
+  document.getElementById('coDiscValue').value = '0';
+  document.getElementById('coTendered').value  = '';
+  document.querySelector('input[name="coPay"][value="cash"]').checked = true;
+
+  renderCheckoutLines();
+  document.getElementById('checkoutModal').classList.add('open');
+}
+
+function closeCheckout() {
+  document.getElementById('checkoutModal').classList.remove('open');
+  coState = null;
+}
+
+function coAddMenu(sel) {
+  if (!sel.value) return;
+  const m = _menuMaster.find(x => x.code === sel.value);
+  if (m) coState.lines.push({ kind: 'service', code: m.code, name: m.name, price: Number(m.priceIncTax) || 0, qty: 1 });
+  sel.value = '';
+  renderCheckoutLines();
+}
+
+function coAddProduct(sel) {
+  if (!sel.value) return;
+  const p = (_productMaster || []).find(x => x.id === sel.value);
+  if (p) coState.lines.push({ kind: 'product', id: p.id, name: p.name, price: Number(p.price) || 0, qty: 1 });
+  sel.value = '';
+  renderCheckoutLines();
+}
+
+function renderCheckoutLines() {
+  const tb = document.getElementById('coItemsBody');
+  tb.innerHTML = coState.lines.map((l, i) => `
+    <tr>
+      <td>${l.kind === 'product' ? '🛍 ' : ''}${l.name}</td>
+      <td><input class="co-qty" type="number" min="1" value="${l.qty}" onchange="coSetQty(${i}, this.value)"></td>
+      <td>¥${((Number(l.price)||0)*(Number(l.qty)||1)).toLocaleString()}</td>
+      <td><button class="co-del" onclick="coRemove(${i})">×</button></td>
+    </tr>`).join('');
+  recalcCheckout();
+}
+
+function coSetQty(i, v) {
+  coState.lines[i].qty = Math.max(1, Number(v) || 1);
+  renderCheckoutLines();
+}
+function coRemove(i) {
+  coState.lines.splice(i, 1);
+  renderCheckoutLines();
+}
+
+function recalcCheckout() {
+  if (!coState) return;
+  const subtotal = coState.lines.reduce((s, l) => s + (Number(l.price)||0) * (Number(l.qty)||1), 0);
+  const type  = document.getElementById('coDiscType').value;
+  const value = Number(document.getElementById('coDiscValue').value) || 0;
+  let disc = type === 'percent' ? Math.round(subtotal * value / 100) : value;
+  disc = Math.min(disc, subtotal);
+  const total = Math.max(subtotal - disc, 0);
+  const tax   = Math.round(total - total / 1.1);
+  const pay   = (document.querySelector('input[name="coPay"]:checked') || {}).value || 'cash';
+
+  document.getElementById('coSubtotal').textContent = '¥' + subtotal.toLocaleString();
+  document.getElementById('coTotal').textContent    = '¥' + total.toLocaleString();
+  document.getElementById('coTax').textContent      = '¥' + tax.toLocaleString();
+  document.getElementById('coCashRow').style.display = pay === 'cash' ? 'flex' : 'none';
+
+  const tendered = Number(document.getElementById('coTendered').value) || 0;
+  const change   = pay === 'cash' ? tendered - total : 0;
+  document.getElementById('coChange').textContent = '¥' + (change >= 0 ? change : 0).toLocaleString();
+  document.getElementById('coConfirmBtn').disabled = pay === 'cash' && tendered < total;
+  coState._total = total;
+}
+
+async function confirmCheckout() {
+  if (!coState) return;
+  const pay = (document.querySelector('input[name="coPay"]:checked') || {}).value || 'cash';
+  const tendered = pay === 'cash' ? (Number(document.getElementById('coTendered').value) || 0) : null;
+  const body = {
+    reservationId: coState.reservationId,
+    items:    coState.lines.filter(l => l.kind === 'service').map(l => ({ code: l.code, name: l.name, price: l.price, qty: l.qty })),
+    products: coState.lines.filter(l => l.kind === 'product').map(l => ({ id: l.id,   name: l.name, price: l.price, qty: l.qty })),
+    discount: { type: document.getElementById('coDiscType').value, value: Number(document.getElementById('coDiscValue').value) || 0 },
+    payment: pay, tendered,
+  };
+  const btn = document.getElementById('coConfirmBtn');
+  btn.disabled = true; btn.textContent = '処理中…';
+  try {
+    const r = await fetch('/api/checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${password}` },
+      body: JSON.stringify(body),
+    });
+    const j = await r.json();
+    if (!r.ok) { alert('会計エラー: ' + (j.error || r.status)); btn.disabled = false; btn.textContent = '会計確定'; return; }
+    closeCheckout();
+    window.open(`/api/receipt?saleId=${encodeURIComponent(j.slipNo)}&token=${encodeURIComponent(password)}`, '_blank');
+    await reload();
+  } catch (e) {
+    alert('通信エラー: ' + e.message); btn.disabled = false; btn.textContent = '会計確定';
+  }
+}
+
+/* ══ 会計モーダル 外クリック ══ */
+document.getElementById('checkoutModal').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeCheckout();
+});
+
+/* ══ 物販マスタ管理 ══ */
+async function loadProductAdmin() {
+  const r = await fetch('/api/products', { headers: { Authorization: `Bearer ${password}` } });
+  const list = (await r.json()).products || [];
+  _productMaster = list.filter(p => p.active !== false); // 会計用キャッシュ更新
+  document.querySelector('#prodTable tbody').innerHTML = list.map(p => `
+    <tr style="${p.active === false ? 'opacity:.5;' : ''}">
+      <td>${p.name}</td>
+      <td>¥${(p.price||0).toLocaleString()}</td>
+      <td>${p.active === false ? '無効' : '有効'}</td>
+      <td>${p.active === false ? '' : `<button class="btn btn-edit" onclick="disableProduct('${p.id}')">無効化</button>`}</td>
+    </tr>`).join('');
+}
+
+async function addProduct() {
+  const name  = (document.getElementById('prodName').value || '').trim();
+  const price = Number(document.getElementById('prodPrice').value);
+  if (!name || !Number.isFinite(price) || price < 0) { alert('商品名と価格（0以上の数値）を入力してください'); return; }
+  const r = await fetch('/api/products', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${password}` },
+    body: JSON.stringify({ name, price }),
+  });
+  if (!r.ok) { alert('追加失敗'); return; }
+  document.getElementById('prodName').value  = '';
+  document.getElementById('prodPrice').value = '';
+  await loadProductAdmin();
+}
+
+async function disableProduct(id) {
+  if (!confirm('この商品を無効化しますか？')) return;
+  const r = await fetch('/api/products?id=' + encodeURIComponent(id), {
+    method: 'DELETE', headers: { Authorization: `Bearer ${password}` },
+  });
+  if (!r.ok) { alert('無効化失敗'); return; }
+  await loadProductAdmin();
 }
 
 /* ══ ユーティリティ ══ */

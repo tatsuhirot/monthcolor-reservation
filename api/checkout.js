@@ -1,49 +1,38 @@
 /**
- * api/checkout.js — 会計確定
+ * api/checkout.js — 会計確定（予約ベース）
  *
  * POST /api/checkout
- * Body: { visitId, payment: "cash"|"card"|"qr", amount, discount }
- * → visits-log.json の該当レコードを completed に更新
- * → sales-log.json に売上レコードを追記
+ * Body: { reservationId, items[], products[], discount:{type,value}, payment, tendered }
+ * → reservations-queue.json の予約に data.checkout を書き visitStatus=paid に更新
+ * → sales-log.json に複数明細の売上を追記
  */
 
 require('dotenv').config();
 const storage = require('../lib/storage');
+const { computeCheckout, nextSlipNo } = require('../lib/checkout');
 const { Resend } = require('resend');
 
-const VISITS_KEY = 'visits-log.json';
-const SALES_KEY  = 'sales-log.json';
-const QUEUE_KEY  = 'reservations-queue.json';
+const QUEUE_KEY = 'reservations-queue.json';
+const SALES_KEY = 'sales-log.json';
 
-// ── LINE Push 通知 ──────────────────────────────────────────────
+async function loadBlob(key) {
+  try { return (await storage.get(key)) || []; } catch { return []; }
+}
+async function saveBlob(key, data) {
+  await storage.put(key, JSON.stringify(data, null, 2));
+}
+
 async function sendLine(text) {
   const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
   const to    = process.env.LINE_OWNER_USER_ID;
-  if (!token || !to) return; // 未設定なら無視
+  if (!token || !to) return;
   try {
     await fetch('https://api.line.me/v2/bot/message/push', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
       body: JSON.stringify({ to, messages: [{ type: 'text', text }] }),
     });
-  } catch (e) {
-    console.error('LINE通知失敗:', e.message);
-  }
-}
-
-async function loadBlob(key) {
-  try {
-    return (await storage.get(key)) || [];
-  } catch {
-    return [];
-  }
-}
-
-async function saveBlob(key, data) {
-  await storage.put(key, JSON.stringify(data, null, 2));
+  } catch (e) { console.error('LINE通知失敗:', e.message); }
 }
 
 module.exports = async function handler(req, res) {
@@ -55,88 +44,104 @@ module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  // 管理パスワード認証
   const authHeader = req.headers['authorization'] || '';
   if (authHeader !== `Bearer ${(process.env.COMINGSOON_PASSWORD || '').trim()}`) {
     return res.status(401).json({ error: '認証エラー' });
   }
 
-  const { visitId, payment, amount, discount = 0 } = req.body || {};
+  const {
+    reservationId, items = [], products = [],
+    discount = { type: 'amount', value: 0 }, payment, tendered = null,
+  } = req.body || {};
 
-  if (!visitId || !payment) {
-    return res.status(400).json({ error: 'visitId, payment は必須です' });
+  if (!reservationId || !payment) {
+    return res.status(400).json({ error: 'reservationId, payment は必須です' });
   }
   if (!['cash', 'card', 'qr'].includes(payment)) {
     return res.status(400).json({ error: 'payment は cash / card / qr のいずれかです' });
   }
 
-  // visits-log の該当レコードを更新
-  const visits     = await loadBlob(VISITS_KEY);
-  const visitIndex = visits.findIndex(v => v.id === visitId);
-  if (visitIndex === -1) {
-    return res.status(404).json({ error: '来店記録が見つかりません' });
+  const merged = [
+    ...items.map(it => ({ kind: 'service', code: it.code || null, name: it.name, price: Number(it.price) || 0, qty: Number(it.qty) || 1 })),
+    ...products.map(p => ({ kind: 'product', id: p.id || null, name: p.name, price: Number(p.price) || 0, qty: Number(p.qty) || 1 })),
+  ];
+  if (merged.length === 0) {
+    return res.status(400).json({ error: '明細が1件以上必要です' });
   }
 
-  const visit     = visits[visitIndex];
-  const finalAmt  = typeof amount === 'number' ? amount : (visit.price - discount);
+  try {
+    const queue = await loadBlob(QUEUE_KEY);
+    const idx = queue.findIndex(r => r.id === reservationId);
+    if (idx === -1) return res.status(404).json({ error: '予約が見つかりません' });
+    const rsv = queue[idx];
+    if (rsv.data && rsv.data.visitStatus === 'paid') {
+      return res.status(409).json({ error: '既に会計済みです' });
+    }
 
-  visit.status     = 'completed';
-  visit.payment    = payment;
-  visit.discount   = discount;
-  visit.finalPrice = finalAmt;
-  visit.checkoutAt = new Date().toISOString();
-  visits[visitIndex] = visit;
-  await saveBlob(VISITS_KEY, visits);
+    let computed;
+    try {
+      computed = computeCheckout({ items: merged, discount, payment, tendered });
+    } catch (e) {
+      return res.status(400).json({ error: e.message }); // 釣り銭マイナス
+    }
 
-  // sales-log に追記
-  const sales = await loadBlob(SALES_KEY);
-  const saleRecord = {
-    visitId:    visit.id,
-    date:       visit.date,
-    time:       visit.time,
-    customer:   visit.customer.name,
-    phone:      visit.customer.phone,
-    menuName:   visit.menuName,
-    category:   visit.category,
-    staff:      visit.staff,
-    price:      visit.price,
-    discount,
-    finalPrice: finalAmt,
-    payment,
-    checkoutAt: visit.checkoutAt,
-  };
-  sales.push(saleRecord);
-  await saveBlob(SALES_KEY, sales);
+    const sales = await loadBlob(SALES_KEY);
+    // 採番は当日 sales 件数+1。単一サロン運用のため分散ロックは持たない（同時会計の衝突は許容）。
+    const salesSameDay = sales.filter(s => s.date === rsv.data.date).length;
+    const slipNo = nextSlipNo(rsv.data.date, salesSameDay);
+    const checkoutAt = new Date().toISOString();
+    const tenderedVal = payment === 'cash' ? Number(tendered) : null;
 
-  console.log(`✅ 会計完了: ${visit.id} / ${visit.customer.name} / ¥${finalAmt} (${payment})`);
+    const checkout = {
+      slipNo, items: merged, discount,
+      subtotal: computed.subtotal, discountAmount: computed.discountAmount,
+      total: computed.total, taxIncluded: computed.taxIncluded,
+      payment, tendered: tenderedVal, change: computed.change, paidAt: checkoutAt,
+    };
+    rsv.data.checkout = checkout;
+    rsv.data.visitStatus = 'paid';
+    queue[idx] = rsv;
+    await saveBlob(QUEUE_KEY, queue);
 
-  // サンクスメール（予約データからメールアドレスを逆引き）
-  if (visit.reservationId && process.env.RESEND_API_KEY) {
-    loadBlob(QUEUE_KEY).then(queue => {
-      const rsv = queue.find(r => r.id === visit.reservationId);
-      if (rsv?.data?.email) {
-        sendThankYouEmail({ sale: saleRecord, email: rsv.data.email }).catch(() => {});
-      }
-    }).catch(() => {});
+    const saleRecord = {
+      reservationId, slipNo, date: rsv.data.date, time: rsv.data.time,
+      customer: rsv.data.name, phone: rsv.data.phone || '',
+      items: merged,
+      subtotal: computed.subtotal, discount, discountAmount: computed.discountAmount,
+      total: computed.total, taxIncluded: computed.taxIncluded,
+      payment, tendered: tenderedVal, change: computed.change,
+      staff: rsv.data.staff || '', checkoutAt,
+    };
+    sales.push(saleRecord);
+    try {
+      await saveBlob(SALES_KEY, sales);
+    } catch (e) {
+      // 注意: 予約は既に visitStatus=paid で保存済み。ここで失敗すると売上台帳に欠落が出る
+      // （単一サロン運用のため分散ロック・トランザクションは持たない＝設計上の許容リスク）。
+      console.error(`❌ 売上台帳書込失敗（予約は精算済）: slipNo=${slipNo} reservationId=${reservationId}`, e);
+      throw e;
+    }
+
+    console.log(`✅ 会計完了: ${slipNo} / ${rsv.data.name} / ¥${computed.total} (${payment})`);
+
+    if (rsv.data.email && process.env.RESEND_API_KEY) {
+      sendThankYouEmail({ sale: saleRecord, email: rsv.data.email }).catch(() => {});
+    }
+
+    const payLabel = { cash: '💴 現金', card: '💳 カード', qr: '📱 QR払い' }[payment] || payment;
+    const itemLines = merged.map(i => `・${i.name} ×${i.qty} ¥${(i.price * i.qty).toLocaleString()}`).join('\n');
+    const discLine = computed.discountAmount > 0 ? `\n割引: -¥${computed.discountAmount.toLocaleString()}` : '';
+    sendLine(
+      `💰 会計完了 [${slipNo}]\n━━━━━━━━━━━\n` +
+      `お客様: ${rsv.data.name}\n${itemLines}${discLine}\n` +
+      `合計: ¥${computed.total.toLocaleString()}\n支払: ${payLabel}\n━━━━━━━━━━━`
+    ).catch(() => {});
+
+    return res.status(200).json({ ok: true, slipNo, total: computed.total, change: computed.change, sale: saleRecord });
+  } catch (e) {
+    console.error('checkout API error:', e);
+    return res.status(500).json({ error: e.message });
   }
-
-  // LINE 通知（失敗してもレスポンスはブロックしない）
-  const payLabel = { cash: '💴 現金', card: '💳 カード', qr: '📱 QR払い' }[payment] || payment;
-  const discountLine = discount > 0 ? `\n割引: -¥${discount.toLocaleString()}` : '';
-  const now = new Date();
-  const timeStr = `${now.getFullYear()}/${now.getMonth()+1}/${now.getDate()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-  sendLine(
-    `💰 会計完了\n` +
-    `━━━━━━━━━━━\n` +
-    `お客様: ${visit.customer.name}\n` +
-    `メニュー: ${visit.menuName}\n` +
-    `お会計: ¥${finalAmt.toLocaleString()}${discountLine}\n` +
-    `支払方法: ${payLabel}\n` +
-    `━━━━━━━━━━━\n` +
-    timeStr
-  );
-
-  return res.status(200).json({ ok: true, sale: saleRecord });
 };
 
 // ── サンクスメール ────────────────────────────────────────────────
@@ -146,15 +151,12 @@ async function sendThankYouEmail({ sale, email }) {
   const visitDate = new Date(sale.date).toLocaleDateString('ja-JP', {
     year: 'numeric', month: 'long', day: 'numeric', weekday: 'short',
   });
-
+  const menuSummary = (sale.items || []).map(i => `${i.name}×${i.qty}`).join('、');
   await resend.emails.send({
     from:    process.env.MAIL_FROM || 'MONTH COLOR <noreply@monthcolor.jp>',
     to:      email,
     subject: `ご来店ありがとうございました — MONTH COLOR`,
-    html: `
-<!DOCTYPE html>
-<html lang="ja">
-<head><meta charset="UTF-8"></head>
+    html: `<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"></head>
 <body style="font-family:'Hiragino Sans',Meiryo,sans-serif;background:#f5f5f5;padding:32px 16px;margin:0;">
   <div style="max-width:520px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.08);">
     <div style="background:#1a1a1a;padding:28px 32px;">
@@ -163,51 +165,26 @@ async function sendThankYouEmail({ sale, email }) {
     </div>
     <div style="padding:32px;">
       <p style="color:#333;line-height:1.8;margin:0 0 24px;">
-        ${sale.customer} 様<br><br>
-        本日はご来店いただきありがとうございました。<br>
-        またのご来店をスタッフ一同お待ちしております。
+        ${sale.customer} 様<br><br>本日はご来店いただきありがとうございました。<br>またのご来店をお待ちしております。
       </p>
       <table style="width:100%;border-collapse:collapse;margin-bottom:28px;">
-        <tr style="border-bottom:1px solid #f0f0f0;">
-          <td style="padding:11px 0;color:#888;font-size:13px;width:30%;">ご来店日</td>
-          <td style="padding:11px 0;color:#1a1a1a;font-size:14px;font-weight:600;">${visitDate}</td>
-        </tr>
-        <tr style="border-bottom:1px solid #f0f0f0;">
-          <td style="padding:11px 0;color:#888;font-size:13px;">メニュー</td>
-          <td style="padding:11px 0;color:#1a1a1a;font-size:14px;">${sale.menuName}</td>
-        </tr>
-        <tr style="border-bottom:1px solid #f0f0f0;">
-          <td style="padding:11px 0;color:#888;font-size:13px;">お会計</td>
-          <td style="padding:11px 0;color:#1a1a1a;font-size:14px;font-weight:600;">¥${sale.finalPrice.toLocaleString()}（${payLabel}）</td>
-        </tr>
+        <tr style="border-bottom:1px solid #f0f0f0;"><td style="padding:11px 0;color:#888;font-size:13px;width:30%;">ご来店日</td><td style="padding:11px 0;color:#1a1a1a;font-size:14px;font-weight:600;">${visitDate}</td></tr>
+        <tr style="border-bottom:1px solid #f0f0f0;"><td style="padding:11px 0;color:#888;font-size:13px;">内容</td><td style="padding:11px 0;color:#1a1a1a;font-size:14px;">${menuSummary}</td></tr>
+        <tr style="border-bottom:1px solid #f0f0f0;"><td style="padding:11px 0;color:#888;font-size:13px;">お会計</td><td style="padding:11px 0;color:#1a1a1a;font-size:14px;font-weight:600;">¥${sale.total.toLocaleString()}（${payLabel}）</td></tr>
       </table>
-
-      <!-- 次回予約 CTA -->
       <div style="text-align:center;margin-bottom:24px;">
-        <a href="${process.env.SITE_URL || 'https://monthcolor-reservation.vercel.app'}"
-           style="display:inline-block;background:#1a1a1a;color:#fff;text-decoration:none;
-                  padding:14px 36px;border-radius:8px;font-size:14px;font-weight:600;letter-spacing:.05em;">
-          次回のご予約はこちら →
-        </a>
+        <a href="${process.env.SITE_URL || 'https://monthcolor-reservation.vercel.app'}" style="display:inline-block;background:#1a1a1a;color:#fff;text-decoration:none;padding:14px 36px;border-radius:8px;font-size:14px;font-weight:600;letter-spacing:.05em;">次回のご予約はこちら →</a>
       </div>
-
-      <!-- 口コミ依頼 -->
       <div style="background:#f9f6f2;border-radius:8px;padding:20px;text-align:center;">
         <p style="color:#888;font-size:12px;margin:0 0 10px;">ご来店の感想をお聞かせください</p>
-        <a href="https://g.page/r/monthcolor/review"
-           style="color:#e60;font-size:13px;font-weight:600;text-decoration:none;">
-          ⭐ Googleで口コミを書く
-        </a>
+        <a href="https://g.page/r/monthcolor/review" style="color:#e60;font-size:13px;font-weight:600;text-decoration:none;">⭐ Googleで口コミを書く</a>
       </div>
     </div>
     <div style="background:#f5f5f5;padding:16px 32px;border-top:1px solid #e8e8e8;">
-      <p style="color:#aaa;font-size:11px;margin:0;text-align:center;">
-        © MONTH COLOR 東陽町 / 東京都江東区東陽4-1-2 大朋ビル4F
-      </p>
+      <p style="color:#aaa;font-size:11px;margin:0;text-align:center;">© MONTH COLOR 東陽町 / 東京都江東区東陽4-1-2 大朋ビル4F</p>
     </div>
   </div>
-</body>
-</html>`,
+</body></html>`,
   });
   console.log(`📧 サンクスメール送信: ${email}`);
 }
