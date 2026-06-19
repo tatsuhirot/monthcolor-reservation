@@ -7,7 +7,7 @@
  */
 
 require('dotenv').config();
-const storage = require('../lib/storage');
+const storage = require('../../lib/storage');
 const { v4: uuidv4 } = require('uuid');
 
 const VISITS_KEY = 'visits-log.json';

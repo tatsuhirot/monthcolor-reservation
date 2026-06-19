@@ -11,7 +11,7 @@
  */
 
 require('dotenv').config();
-const storage = require('../lib/storage');
+const storage = require('../../lib/storage');
 
 const NOTES_KEY = 'customer-notes.json';
 

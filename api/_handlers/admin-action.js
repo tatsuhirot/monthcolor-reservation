@@ -9,7 +9,7 @@
  *   updateData?: { date, time, name, menuName, memo }  ← update 時のみ
  */
 
-const storage = require('../lib/storage');
+const storage = require('../../lib/storage');
 const { v4: uuidv4 } = require('uuid');
 
 const QUEUE_KEY = 'reservations-queue.json';

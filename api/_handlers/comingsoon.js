@@ -6,7 +6,7 @@
  * GET /api/comingsoon?date=YYYY-MM-DD → 指定日の予約（comingsoon-date と同等）
  */
 
-const storage = require('../lib/storage');
+const storage = require('../../lib/storage');
 
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');

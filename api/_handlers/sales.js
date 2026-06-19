@@ -7,7 +7,7 @@
  */
 
 require('dotenv').config();
-const storage = require('../lib/storage');
+const storage = require('../../lib/storage');
 
 const SALES_KEY   = 'sales-log.json';
 const VISITS_KEY  = 'visits-log.json';

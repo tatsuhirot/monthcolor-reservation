@@ -7,7 +7,7 @@
  * 予約受付後、お客様に確認メールを送信する。
  */
 
-const storage = require('../lib/storage');
+const storage = require('../../lib/storage');
 const { v4: uuidv4 } = require('uuid');
 const { Resend } = require('resend');
 const { CAPACITY, getOccupiedSlots, getOccupiedSlotsForItems, serviceForItems, normalizeCategory, buildBookedMap, loadQueue, QUEUE_KEY } = require('./_shared');

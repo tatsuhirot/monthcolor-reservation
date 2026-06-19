@@ -47,16 +47,13 @@ app.get('/customers', (_, res) => res.sendFile(path.join(__dirname, 'customers.h
 app.get('/reserve',   (_, res) => res.sendFile(path.join(__dirname, 'reservation.html')));
 app.get('/close',     (_, res) => res.sendFile(path.join(__dirname, 'close.html')));
 
-// ── api/ フォルダのServerless関数をローカルでマウント ────────────
-const apiDir = path.join(__dirname, 'api');
-fs.readdirSync(apiDir).filter(f => f.endsWith('.js')).forEach(file => {
-  const name = file.replace('.js', '');
-  try {
-    const handler = require(path.join(apiDir, file));
-    app.all(`/api/${name}`, handler);
-    console.log(`  ✓ /api/${name}`);
-  } catch(e) { console.warn(`  ✗ /api/${name}: ${e.message}`); }
+// ── api/_handlers/ を api/router.js 経由でマウント ───────────────
+const apiRouter = require('./api/router');
+app.all('/api/:name', (req, res) => {
+  req.query.name = req.params.name;
+  return apiRouter(req, res);
 });
+console.log('  ✓ /api/:name → api/router.js');
 
 // ── ヘルスチェック ─────────────────────────────────────────────
 app.get('/health', (_, res) => res.json({ ok: true }));
