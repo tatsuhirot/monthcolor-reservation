@@ -45,6 +45,7 @@ app.get('/register',  (_, res) => res.sendFile(path.join(__dirname, 'register.ht
 app.get('/report',    (_, res) => res.sendFile(path.join(__dirname, 'report.html')));
 app.get('/customers', (_, res) => res.sendFile(path.join(__dirname, 'customers.html')));
 app.get('/reserve',   (_, res) => res.sendFile(path.join(__dirname, 'reservation.html')));
+app.get('/close',     (_, res) => res.sendFile(path.join(__dirname, 'close.html')));
 
 // ── api/ フォルダのServerless関数をローカルでマウント ────────────
 const apiDir = path.join(__dirname, 'api');

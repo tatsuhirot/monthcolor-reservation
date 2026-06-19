@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MONTH COLOR — レジ締め</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, sans-serif; background: #f5f6f8; color: #222; }
+  .topbar { background: #2d6a31; color: #fff; height: 52px; display: flex; align-items: center; padding: 0 18px; gap: 16px; }
+  .topbar h1 { font-size: 16px; font-weight: 700; }
+  .topbar a { color: #cde9d0; text-decoration: none; font-size: 13px; }
+  .wrap { max-width: 560px; margin: 24px auto; padding: 0 16px; }
+  .card { background: #fff; border-radius: 10px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,.06); }
+  .login { max-width: 320px; margin: 80px auto; }
+  .login input { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; margin: 8px 0; }
+  .login button, .btn { background: #2d6a31; color: #fff; border: none; padding: 10px 18px; border-radius: 7px; cursor: pointer; font-size: 14px; }
+  .datenav { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+  .datenav h2 { font-size: 17px; flex: 1; }
+  .datenav button { background: #eef0f2; border: 1px solid #ddd; border-radius: 6px; padding: 6px 10px; cursor: pointer; }
+  .row { display: flex; justify-content: space-between; align-items: center; padding: 7px 0; }
+  .row.total { border-top: 2px solid #222; margin-top: 6px; padding-top: 10px; font-weight: 700; font-size: 17px; }
+  .muted { color: #888; font-size: 13px; }
+  .float-in { width: 120px; padding: 6px 8px; border: 1px solid #ccc; border-radius: 6px; text-align: right; }
+  table.denoms { width: 100%; border-collapse: collapse; margin: 12px 0; }
+  table.denoms td { padding: 5px 4px; border-bottom: 1px solid #f0f0f0; }
+  table.denoms .lbl { width: 90px; color: #555; }
+  table.denoms .cnt input { width: 70px; padding: 5px 6px; border: 1px solid #ccc; border-radius: 5px; text-align: right; }
+  table.denoms .sub { text-align: right; color: #333; width: 110px; }
+  .oversh { font-weight: 700; }
+  .oversh.zero { color: #1a7f37; }
+  .oversh.short { color: #c00; }
+  .oversh.over { color: #1565c0; }
+  .note-in { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 6px; margin-top: 4px; }
+  .confirm-row { text-align: right; margin-top: 18px; }
+  #toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #222; color: #fff; padding: 10px 18px; border-radius: 8px; opacity: 0; transition: opacity .2s; }
+  #toast.show { opacity: 1; }
+  #toast.err { background: #c00; }
+</style>
+</head>
+<body>
+  <div id="loginScreen" class="login">
+    <div class="card">
+      <h2 style="margin-bottom:8px">🧾 レジ締め</h2>
+      <input type="password" id="loginPw" placeholder="パスワード">
+      <button onclick="doLogin()">ログイン</button>
+      <div id="loginError" style="color:#c00;font-size:13px;margin-top:6px"></div>
+    </div>
+  </div>
+
+  <div id="mainScreen" style="display:none">
+    <div class="topbar">
+      <h1>MONTH COLOR</h1>
+      <a href="/admin">← 予約管理</a>
+      <a href="/report">📊 レポート</a>
+      <span style="flex:1"></span>
+      <a href="#" onclick="doLogout();return false">ログアウト</a>
+    </div>
+    <div class="wrap">
+      <div class="card">
+        <div class="datenav">
+          <button onclick="shiftDay(-1)">◀ 前日</button>
+          <button onclick="goToday()">今日</button>
+          <button onclick="shiftDay(1)">翌日 ▶</button>
+          <h2 id="dateLabel" style="text-align:right"></h2>
+        </div>
+
+        <div class="row"><span>釣り銭準備金</span>
+          <input type="number" id="floatIn" class="float-in" min="0" oninput="recalc()"></div>
+        <div class="row"><span>当日現金売上</span><span id="cashSales">¥0</span></div>
+        <div class="row total"><span>理論在高</span><span id="expectedCash">¥0</span></div>
+
+        <h3 style="margin:16px 0 4px;font-size:14px">金種別カウント</h3>
+        <table class="denoms"><tbody id="denomBody"></tbody></table>
+        <div class="row total"><span>実在高</span><span id="countedCash">¥0</span></div>
+
+        <div class="row"><span>過不足</span><span id="overShort" class="oversh zero">±0</span></div>
+        <div class="row"><span>入金額（繰越除く）</span><span id="deposit">¥0</span></div>
+
+        <div style="margin-top:12px">
+          <label class="muted">メモ</label>
+          <input type="text" id="noteIn" class="note-in" placeholder="任意">
+        </div>
+
+        <div class="row muted" style="margin-top:10px">
+          <span>参考</span><span>カード <b id="cardSales">¥0</b> / QR <b id="qrSales">¥0</b></span>
+        </div>
+
+        <div class="confirm-row"><button class="btn" onclick="confirmClose()">締め確定</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+
+<script>
+const DENOMS = [10000, 5000, 2000, 1000, 500, 100, 50, 10, 5, 1];
+let token = '';
+let viewDate = new Date(); viewDate.setHours(0,0,0,0);
+let serverCash = 0;
+
+function pad(n){ return String(n).padStart(2,'0'); }
+function dateStr(d){ return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
+function fmt(n){ return `¥${(Number(n)||0).toLocaleString()}`; }
+function toast(msg, err){ const t=document.getElementById('toast'); t.textContent=msg; t.className='show'+(err?' err':''); setTimeout(()=>t.className='',2000); }
+
+async function doLogin(){
+  const pw = document.getElementById('loginPw').value.trim();
+  if (!pw) return;
+  const r = await fetch(`/api/close?date=${dateStr(viewDate)}`, { headers: { Authorization: `Bearer ${pw}` } });
+  if (!r.ok) { document.getElementById('loginError').textContent = 'パスワードが違います'; return; }
+  token = pw;
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('mainScreen').style.display = 'block';
+  buildDenomRows();
+  applyData(await r.json());
+}
+function doLogout(){ token=''; document.getElementById('mainScreen').style.display='none'; document.getElementById('loginScreen').style.display='block'; }
+document.getElementById('loginPw').addEventListener('keydown', e => { if (e.key==='Enter') doLogin(); });
+
+function buildDenomRows(){
+  const tb = document.getElementById('denomBody');
+  tb.innerHTML = DENOMS.map(d => `
+    <tr>
+      <td class="lbl">¥${d.toLocaleString()}</td>
+      <td class="cnt"><input type="number" min="0" id="d_${d}" value="0" oninput="recalc()"></td>
+      <td class="sub" id="s_${d}">¥0</td>
+    </tr>`).join('');
+}
+
+function getDenoms(){
+  const o = {};
+  for (const d of DENOMS) o[d] = Number(document.getElementById(`d_${d}`).value) || 0;
+  return o;
+}
+
+function recalc(){
+  let counted = 0;
+  for (const d of DENOMS) {
+    const n = Math.max(0, Math.floor(Number(document.getElementById(`d_${d}`).value) || 0));
+    const sub = d * n;
+    counted += sub;
+    document.getElementById(`s_${d}`).textContent = fmt(sub);
+  }
+  const float = Math.max(0, Number(document.getElementById('floatIn').value) || 0);
+  const expected = float + serverCash;
+  const over = counted - expected;
+  const deposit = Math.max(0, counted - float);
+  document.getElementById('expectedCash').textContent = fmt(expected);
+  document.getElementById('countedCash').textContent = fmt(counted);
+  document.getElementById('deposit').textContent = fmt(deposit);
+  const el = document.getElementById('overShort');
+  el.textContent = over === 0 ? '±0' : (over > 0 ? `+${fmt(over)}` : `-${fmt(-over)}`);
+  el.className = 'oversh ' + (over === 0 ? 'zero' : over < 0 ? 'short' : 'over');
+}
+
+function applyData(data){
+  document.getElementById('dateLabel').textContent = data.date;
+  serverCash = data.cashSales || 0;
+  document.getElementById('cashSales').textContent = fmt(data.cashSales);
+  document.getElementById('cardSales').textContent = fmt(data.cardSales);
+  document.getElementById('qrSales').textContent = fmt(data.qrSales);
+  document.getElementById('floatIn').value = data.defaultFloat;
+  const ex = data.existing;
+  for (const d of DENOMS) document.getElementById(`d_${d}`).value = (ex && ex.denominations && ex.denominations[d]) || 0;
+  document.getElementById('noteIn').value = (ex && ex.note) || '';
+  recalc();
+}
+
+async function loadClose(){
+  const r = await fetch(`/api/close?date=${dateStr(viewDate)}`, { headers: { Authorization: `Bearer ${token}` } });
+  if (!r.ok) { toast('取得失敗', true); return; }
+  applyData(await r.json());
+}
+function shiftDay(delta){ viewDate = new Date(viewDate.getTime() + delta*86400000); loadClose(); }
+function goToday(){ viewDate = new Date(); viewDate.setHours(0,0,0,0); loadClose(); }
+
+async function confirmClose(){
+  const body = { date: dateStr(viewDate), float: Number(document.getElementById('floatIn').value) || 0, denominations: getDenoms(), note: document.getElementById('noteIn').value };
+  const r = await fetch('/api/close', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(body) });
+  const j = await r.json();
+  if (!r.ok) { toast('締めエラー: ' + (j.error || r.status), true); return; }
+  toast('締めを保存しました');
+  applyData({ date: j.date, cashSales: j.cashSales, cardSales: j.cardSales, qrSales: j.qrSales, defaultFloat: j.float, existing: j });
+}
+</script>
+</body>
+</html>
