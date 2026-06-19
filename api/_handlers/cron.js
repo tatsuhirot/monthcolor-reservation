@@ -13,7 +13,7 @@
  */
 
 require('dotenv').config();
-const storage = require('../lib/storage');
+const storage = require('../../lib/storage');
 
 // ═══════════════════════════════════════════════════════════════
 // 共通ユーティリティ

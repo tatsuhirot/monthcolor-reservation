@@ -2,7 +2,7 @@
  * api/_shared.js — 予約ロジック共通定数・関数
  */
 
-const storage = require('../lib/storage');
+const storage = require('../../lib/storage');
 
 const QUEUE_KEY = 'reservations-queue.json';
 

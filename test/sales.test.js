@@ -11,7 +11,7 @@ Module._load = function (req) {
   return origLoad.apply(this, arguments);
 };
 process.env.COMINGSOON_PASSWORD = 'pw';
-const handler = require('../api/sales');
+const handler = require('../api/_handlers/sales');
 
 function mockRes() {
   return { _c: 200, _j: null, setHeader() {}, status(c){this._c=c;return this;}, json(o){this._j=o;return this;}, end(){return this;} };

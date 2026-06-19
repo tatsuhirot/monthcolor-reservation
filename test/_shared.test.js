@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { getOccupiedSlotsForItems, serviceForItems } = require('../api/_shared');
+const { getOccupiedSlotsForItems, serviceForItems } = require('../api/_handlers/_shared');
 
 test('getOccupiedSlotsForItems は menuItems の合計所要時間で枠を返す', () => {
   // 70分(リタッチ)+30分(炭酸泉) = 100分 → 30分刻みで4枠

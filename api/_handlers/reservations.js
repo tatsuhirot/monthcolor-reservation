@@ -4,7 +4,7 @@
  * スタッフ用: Vercel Blob の予約キューを返す（パスワード認証付き）
  */
 
-const storage = require('../lib/storage');
+const storage = require('../../lib/storage');
 
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');

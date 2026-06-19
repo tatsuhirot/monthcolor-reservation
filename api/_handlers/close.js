@@ -5,8 +5,8 @@
  * 認証: Authorization: Bearer ${COMINGSOON_PASSWORD}
  */
 require('dotenv').config();
-const storage = require('../lib/storage');
-const { computeClose, DEFAULT_FLOAT } = require('../lib/close');
+const storage = require('../../lib/storage');
+const { computeClose, DEFAULT_FLOAT } = require('../../lib/close');
 
 const SALES_KEY = 'sales-log.json';
 const CLOSE_KEY = 'daily-close.json';

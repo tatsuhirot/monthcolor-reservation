@@ -1,5 +1,5 @@
 // api/menu.js — GET /api/menu  menu-master.json を配信
-const storage = require('../lib/storage');
+const storage = require('../../lib/storage');
 
 module.exports = async function handler(req, res) {
   const origin = req.headers.origin || '';

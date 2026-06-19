@@ -7,7 +7,7 @@
  * GET /api/salonboard?today=1             → 今日のSB予約（today-reservations と同等）
  */
 
-const storage = require('../lib/storage');
+const storage = require('../../lib/storage');
 const { CAPACITY, ALL_TIMES, buildBookedMap, loadQueue, normalizeCategory, occupiedFromTimeRange } = require('./_shared');
 
 module.exports = async function handler(req, res) {

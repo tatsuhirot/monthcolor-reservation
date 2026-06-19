@@ -8,8 +8,8 @@
  */
 
 require('dotenv').config();
-const storage = require('../lib/storage');
-const { computeCheckout, nextSlipNo } = require('../lib/checkout');
+const storage = require('../../lib/storage');
+const { computeCheckout, nextSlipNo } = require('../../lib/checkout');
 const { Resend } = require('resend');
 
 const QUEUE_KEY = 'reservations-queue.json';

@@ -11,7 +11,7 @@ Module._load = function (req, parent, isMain) {
   }
   return origLoad.apply(this, arguments);
 };
-const handler = require('../api/reserve');
+const handler = require('../api/_handlers/reserve');
 
 function mockRes() {
   return { _c: 200, _j: null, setHeader() {}, status(c){this._c=c;return this;}, json(o){this._j=o;return this;}, end(){return this;} };
